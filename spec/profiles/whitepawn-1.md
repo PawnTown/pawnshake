@@ -50,12 +50,27 @@ cancels without one; canceled games are still uploaded and saved.
 4. **App attestation** (Play Integrity / App Attest) on rated offline games
    to make modified clients harder.
 
+## How WhitePawn's online games use it
+
+- A client announces `pawnshake/1` in its session Hello. Once both players'
+  clients did (before the first move), the game runs on records.
+- White is always the challenger: White sends CHALLENGE (color white,
+  arbiter `full`, this profile) and START, Black sends ACCEPT, over the play
+  session. The server checks that the genesis describes the game it created.
+- Device keys are per browser, certified by the play server
+  (`POST /play/v1/pawnshake/cert`, 30 days).
+- The server keeps the clocks and the rules as before. It relays every
+  record and sends each record's ply and legal count alongside it, so a
+  client can rebuild its chain from a snapshot (the signature still covers
+  both). Claims and rematches stay plain commands.
+
 ## Rollout in WhitePawn
 
-0. Certificates, genesis, records and anchors over the existing play-server
-   session, online (`full`) only, no direct link: the server delivers by
-   anchoring. This is today's play with signed records, and the database
-   write leaves the critical path. Measure move-to-render on both clients.
+0. Certificates, genesis and records over the existing play-server session,
+   online (`full`) only, no direct link. Implemented on the whitepawn branch
+   `feat/pawnshake-online-play`; anchors/receipts are not sent yet (the
+   server is in the path anyway). Next: measure move-to-render on both
+   clients, then let the server relay before it persists.
 1. Direct link (iroh) for online games between friends, Flutter vs Flutter.
    Measure how often the direct copy wins, and by how much.
 2. Offline games: local play over BLE / LAN, live checks, late anchors,
