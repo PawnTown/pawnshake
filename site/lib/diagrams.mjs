@@ -49,7 +49,7 @@ export function hexdump(hex, segments, { title, perRow = 16 } = {}) {
     for (let i = r; i < Math.min(r + perRow, bytes.length); i++) {
       const m = segOf(i);
       const first = i === m.from ? " first" : "";
-      cells += `<span class="hb k-${m.kind}${first}" title="${esc(m.label)} · byte ${i - m.from + 1} of ${m.to - m.from}">${bytes[i]}</span>`;
+      cells += `<span class="hb k-${m.kind}${first}" data-f="${esc(m.label)} · byte ${i - m.from + 1} of ${m.to - m.from}">${bytes[i]}</span>`;
     }
     rows += `<div class="hx-row"><span class="hx-off">${r.toString(16).padStart(4, "0")}</span><span class="hx-bytes">${cells}</span></div>`;
   }
@@ -59,6 +59,7 @@ export function hexdump(hex, segments, { title, perRow = 16 } = {}) {
   return `<figure class="hexdump">
   ${title ? `<figcaption><span class="layout-title">${title}</span><span class="layout-total">${bytes.length} bytes</span></figcaption>` : ""}
   <div class="hx">${rows}</div>
+  <p class="hx-readout" aria-live="polite"></p>
   <div class="hx-legend">${legend}</div>
 </figure>`;
 }
@@ -75,39 +76,76 @@ export function varintLen(hex, offset = 0) {
 
 // ------------------------------------------------------------- sequence
 
-// A message sequence between lanes (players, server).
+// Every svg gets its own marker ids: a hidden variant must never own the
+// markers a visible one points at.
+let uid = 0;
+
+// Rough text width for the label font (mono, ~0.6 em per character).
+const textW = (str, px) => String(str).length * px * 0.7;
+
+// A message sequence between lanes (players, server). Drawn twice: a wide
+// picture for screens with room, and a narrow one at phone scale, so labels
+// stay readable without zooming.
 //   lanes: [{ id, label, tone: "white" | "black" | "server" }]
 //   rows:  [{ arrows: [{ from, to, label, tone, dashed, cut }], note: { at, text, tone, span } , gap }]
 // tone: "ok" | "bad" | "warn" | "muted" | undefined
 export function sequence(lanes, rows, { width = 720, title } = {}) {
-  const pad = 70;
+  const wide = drawSequence(lanes, rows, { width, pad: 70, head: 104, label: 12.5, note: 12.5 });
+  const narrow = drawSequence(lanes, rows, { width: 360, pad: 48, head: 84, label: 11, note: 11.5 });
+  const aria = esc(title || "sequence diagram");
+  return `<figure class="diagram">${title ? `<figcaption>${title}</figcaption>` : ""}<svg class="v-wide" viewBox="${wide.box}" role="img" aria-label="${aria}">${wide.svg}</svg><svg class="v-narrow" viewBox="${narrow.box}" role="img" aria-label="${aria}">${narrow.svg}</svg></figure>`;
+}
+
+function drawSequence(lanes, rows, { width, pad, head, label, note }) {
+  const id = `sq${++uid}`;
   const step = (width - 2 * pad) / Math.max(1, lanes.length - 1);
   const x = Object.fromEntries(lanes.map((l, i) => [l.id, pad + i * step]));
+  const clamp = (cx, w) => Math.min(Math.max(cx, w / 2 + 4), width - w / 2 - 4);
   let y = 74;
   let body = "";
   for (const row of rows) {
+    const arrows = row.arrows || [];
+    // Two messages that cross (sent at the same moment between the same two
+    // lanes, in opposite directions) are drawn as an X: each slopes down
+    // from its sender, labelled where it leaves.
+    const crossing =
+      arrows.length === 2 && arrows[0].from === arrows[1].to && arrows[0].to === arrows[1].from && !arrows.some((a) => a.cut);
+    if (crossing) {
+      const drop = 46;
+      for (const a of arrows) {
+        const x1 = x[a.from];
+        const x2 = x[a.to];
+        const dir = x2 > x1 ? 1 : -1;
+        const tone = a.tone || "plain";
+        body += `<line class="sq-line t-${tone}${a.dashed ? " dashed" : ""}" x1="${x1 + dir * 8}" y1="${y + 18}" x2="${x2 - dir * 10}" y2="${y + 18 + drop}" marker-end="url(#${id}-${tone})"/>`;
+        const px = Math.min(label, (Math.abs(x2 - x1) / 2 - 6) / Math.max(1, String(a.label || "").length * 0.7));
+        body += `<text class="sq-label t-${tone}" style="font-size:${px.toFixed(1)}px" x="${x1 + dir * 6}" y="${y + 8}" text-anchor="${dir > 0 ? "start" : "end"}">${esc(a.label || "")}</text>`;
+      }
+      y += Math.max(row.gap || 0, drop + 34);
+      continue;
+    }
     const h = row.gap || 52;
-    for (const a of row.arrows || []) {
+    for (const a of arrows) {
       const x1 = x[a.from];
       const x2 = x[a.to];
       const dir = x2 > x1 ? 1 : -1;
       const tone = a.tone || "plain";
       const end = a.cut ? (x1 + x2) / 2 : x2 - dir * 8;
-      body += `<line class="sq-line t-${tone}${a.dashed ? " dashed" : ""}" x1="${x1 + dir * 8}" y1="${y + 14}" x2="${end}" y2="${y + 14}" ${a.cut ? "" : `marker-end="url(#ah-${tone})"`}/>`;
+      body += `<line class="sq-line t-${tone}${a.dashed ? " dashed" : ""}" x1="${x1 + dir * 8}" y1="${y + 14}" x2="${end}" y2="${y + 14}" ${a.cut ? "" : `marker-end="url(#${id}-${tone})"`}/>`;
       if (a.cut) {
-        const cx = end;
-        body += `<g class="sq-cut"><line x1="${cx - 7}" y1="${y + 7}" x2="${cx + 7}" y2="${y + 21}"/><line x1="${cx - 7}" y1="${y + 21}" x2="${cx + 7}" y2="${y + 7}"/></g>`;
+        body += `<g class="sq-cut"><line x1="${end - 7}" y1="${y + 7}" x2="${end + 7}" y2="${y + 21}"/><line x1="${end - 7}" y1="${y + 21}" x2="${end + 7}" y2="${y + 7}"/></g>`;
       }
-      const lx = a.cut ? (x1 + end) / 2 : (x1 + x2) / 2;
-      body += `<text class="sq-label t-${tone}" x="${lx + (a.dx || 0)}" y="${y + 6}" text-anchor="middle">${esc(a.label || "")}</text>`;
+      const lx = (a.cut ? (x1 + end) / 2 : (x1 + x2) / 2) + (width > 500 ? a.dx || 0 : (a.dx || 0) / 2);
+      // a label that cannot fit the picture gets a smaller font, never a cut
+      const px = Math.min(label, (width - 12) / Math.max(1, String(a.label || "").length * 0.7));
+      body += `<text class="sq-label t-${tone}" style="font-size:${px.toFixed(1)}px" x="${clamp(lx, textW(a.label || "", px))}" y="${y + 6}" text-anchor="middle">${esc(a.label || "")}</text>`;
     }
     if (row.note) {
       const n = row.note;
       const cx = n.span ? (x[n.span[0]] + x[n.span[1]]) / 2 : x[n.at];
-      const w = n.w || Math.min(width - 20, Math.max(120, n.text.length * 7.2 + 26));
-      // keep the pill inside the picture when it sits on an outer lane
+      const w = Math.min(width - 12, Math.max(n.w && width > 500 ? n.w : 0, 96, n.text.length * note * 0.56 + 26));
       const left = Math.min(Math.max(cx - w / 2, 6), width - 6 - w);
-      body += `<g class="sq-note t-${n.tone || "plain"}"><rect x="${left}" y="${y}" width="${w}" height="28" rx="14"/><text x="${left + w / 2}" y="${y + 18.5}" text-anchor="middle">${esc(n.text)}</text></g>`;
+      body += `<g class="sq-note t-${n.tone || "plain"}"><rect x="${left}" y="${y}" width="${w}" height="28" rx="14"/><text style="font-size:${note}px" x="${left + w / 2}" y="${y + 18.5}" text-anchor="middle">${esc(n.text)}</text></g>`;
     }
     y += h;
   }
@@ -115,66 +153,125 @@ export function sequence(lanes, rows, { width = 720, title } = {}) {
   const lifelines = lanes
     .map(
       (l) => `<line class="sq-life" x1="${x[l.id]}" y1="52" x2="${x[l.id]}" y2="${height - 8}"/>
-<g class="sq-head l-${l.tone || "server"}"><rect x="${x[l.id] - 52}" y="14" width="104" height="32" rx="16"/><text x="${x[l.id]}" y="35" text-anchor="middle">${esc(l.label)}</text></g>`,
+<g class="sq-head l-${l.tone || "server"}"><rect x="${x[l.id] - head / 2}" y="14" width="${head}" height="32" rx="16"/><text x="${x[l.id]}" y="35" text-anchor="middle">${esc(l.label)}</text></g>`,
     )
     .join("");
   const markers = ["plain", "ok", "bad", "warn", "muted"]
     .map(
-      (t) => `<marker id="ah-${t}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah t-${t}" d="M0,0 L10,5 L0,10 z"/></marker>`,
+      (t) => `<marker id="${id}-${t}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah t-${t}" d="M0,0 L10,5 L0,10 z"/></marker>`,
     )
     .join("");
-  return `<figure class="diagram">${title ? `<figcaption>${title}</figcaption>` : ""}<div class="scroll-x"><svg class="min-draw" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(title || "sequence diagram")}"><defs>${markers}</defs>${lifelines}${body}</svg></div></figure>`;
+  return { box: `0 0 ${width} ${height}`, svg: `<defs>${markers}</defs>${lifelines}${body}` };
 }
 
 // ------------------------------------------------------------- chains
 
-// Two chains side by side: White on top, Black below. Each record is a small
-// card; `prev` links run along a row, `seen` links cross between rows.
+// Two chains: White and Black, each record a small card; `prev` links run
+// along a chain, `seen` links cross between them. Wide screens get the chains
+// as two rows; phones get them as two columns running down the page.
 //   white / black: [{ label, sub, tone }]   (index 0 = seq 1)
 //   seen: [[fromSide "w"|"b", fromIdx, toIdx]]  record fromIdx of side saw toIdx of the other side
 //   fork: { side, idx, label, sub } a second card stacked on one seq
-export function chains({ white = [], black = [], seen = [], fork, title, width = 720, genesis = true } = {}) {
+export function chains(opts = {}) {
+  const wide = drawChainsRows(opts);
+  const narrow = drawChainsColumns(opts);
+  const aria = esc(opts.title || "chain");
+  return `<figure class="diagram chains">${opts.title ? `<figcaption>${opts.title}</figcaption>` : ""}<svg class="v-wide" viewBox="${wide.box}" style="max-width:${Math.round(Number(wide.box.split(" ")[2]) * 1.15)}px;margin:0 auto" role="img" aria-label="${aria}">${wide.svg}</svg><svg class="v-narrow" viewBox="${narrow.box}" role="img" aria-label="${aria}">${narrow.svg}</svg></figure>`;
+}
+
+const chainDefs = (id) =>
+  `<defs><marker id="${id}-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ch-ah" d="M0,0 L10,5 L0,10 z"/></marker><marker id="${id}-s" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ch-sh" d="M0,0 L10,5 L0,10 z"/></marker></defs>`;
+
+const chainCard = (side, x, y, w, h, r, extra = "") =>
+  `<g class="ch-card s-${side} ct-${r.tone || "plain"}${extra}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10"/><text x="${x + w / 2}" y="${y + 20}" text-anchor="middle">${esc(r.label)}</text><text class="sub" x="${x + w / 2}" y="${y + 36}" text-anchor="middle">${esc(r.sub || "")}</text></g>`;
+
+function drawChainsRows({ white = [], black = [], seen = [], fork, width = 720, genesis = true }) {
+  const id = `ch${++uid}`;
   const cw = 92;
   const ch = 46;
   const gx = 30;
   const left = genesis ? 118 : 20;
   const yW = 34;
-  const yB = 168 + (fork ? 26 : 0);
+  const forkDrop = ch + 16;
+  const yB = 168 + (fork && fork.side === "w" ? forkDrop : 0);
   const xs = (i) => left + i * (cw + gx);
   const cols = Math.max(white.length, black.length);
-  const w = Math.max(width, left + cols * (cw + gx) + 10);
-  const height = yB + ch + 34;
+  const w = Math.max(Math.min(width, left + cols * (cw + gx) + 40), left + cols * (cw + gx) + 10);
+  const height = yB + ch + 34 + (fork && fork.side === "b" ? forkDrop : 0);
   let s = "";
   if (genesis) {
     const gy = (yW + yB + ch) / 2 - 24;
     s += `<g class="ch-gen"><rect x="10" y="${gy}" width="84" height="48" rx="12"/><text x="52" y="${gy + 21}" text-anchor="middle">genesis</text><text class="sub" x="52" y="${gy + 37}" text-anchor="middle">hash</text></g>`;
-    if (white.length) s += `<path class="ch-prev" d="M94,${gy + 18} C106,${gy + 18} 100,${yW + ch / 2} ${left - 8},${yW + ch / 2}" marker-end="url(#ch-a)"/>`;
-    if (black.length) s += `<path class="ch-prev" d="M94,${gy + 30} C106,${gy + 30} 100,${yB + ch / 2} ${left - 8},${yB + ch / 2}" marker-end="url(#ch-a)"/>`;
+    if (white.length) s += `<path class="ch-prev" d="M94,${gy + 18} C106,${gy + 18} 100,${yW + ch / 2} ${left - 8},${yW + ch / 2}" marker-end="url(#${id}-a)"/>`;
+    if (black.length) s += `<path class="ch-prev" d="M94,${gy + 30} C106,${gy + 30} 100,${yB + ch / 2} ${left - 8},${yB + ch / 2}" marker-end="url(#${id}-a)"/>`;
   }
-  const card = (side, i, r, y, extra = "") =>
-    `<g class="ch-card s-${side} ct-${r.tone || "plain"}${extra}"><rect x="${xs(i)}" y="${y}" width="${cw}" height="${ch}" rx="10"/><text x="${xs(i) + cw / 2}" y="${y + 20}" text-anchor="middle">${esc(r.label)}</text><text class="sub" x="${xs(i) + cw / 2}" y="${y + 36}" text-anchor="middle">${esc(r.sub || "")}</text></g>`;
   const row = (side, list, y) => {
     let out = "";
     list.forEach((r, i) => {
-      if (i > 0) out += `<line class="ch-prev" x1="${xs(i - 1) + cw}" y1="${y + ch / 2}" x2="${xs(i) - 6}" y2="${y + ch / 2}" marker-end="url(#ch-a)"/>`;
-      out += card(side, i, r, y);
+      if (i > 0) out += `<line class="ch-prev" x1="${xs(i - 1) + cw}" y1="${y + ch / 2}" x2="${xs(i) - 6}" y2="${y + ch / 2}" marker-end="url(#${id}-a)"/>`;
+      out += chainCard(side, xs(i), y, cw, ch, r);
     });
     return out;
   };
-  // seen links: drawn first so cards sit on top
   for (const [side, from, to] of seen) {
     const fromY = side === "w" ? yW + ch : yB;
     const toY = side === "w" ? yB : yW + ch;
-    s += `<path class="ch-seen" d="M${xs(from) + cw / 2 - 10},${fromY} C${xs(from) + cw / 2 - 10},${(fromY + toY) / 2} ${xs(to) + cw / 2 + 10},${(fromY + toY) / 2} ${xs(to) + cw / 2 + 10},${toY + (side === "w" ? -4 : 4)}" marker-end="url(#ch-s)"/>`;
+    s += `<path class="ch-seen" d="M${xs(from) + cw / 2 - 10},${fromY} C${xs(from) + cw / 2 - 10},${(fromY + toY) / 2} ${xs(to) + cw / 2 + 10},${(fromY + toY) / 2} ${xs(to) + cw / 2 + 10},${toY + (side === "w" ? -4 : 4)}" marker-end="url(#${id}-s)"/>`;
   }
   s += row("w", white, yW) + row("b", black, yB);
   if (fork) {
-    const y = (fork.side === "w" ? yW : yB) + 26;
-    s += card(fork.side, fork.idx, { label: fork.label, sub: fork.sub, tone: "bad" }, y, " fork");
+    const y0 = fork.side === "w" ? yW : yB;
+    const x0 = xs(fork.idx) + cw / 2;
+    s += `<line class="ch-fork" x1="${x0}" y1="${y0 + ch}" x2="${x0}" y2="${y0 + forkDrop}"/>`;
+    s += chainCard(fork.side, xs(fork.idx), y0 + forkDrop, cw, ch, { label: fork.label, sub: fork.sub, tone: "bad" }, " fork");
   }
   s += `<text class="ch-lane" x="${left}" y="${yW - 10}">White</text><text class="ch-lane" x="${left}" y="${yB + ch + 22}">Black</text>`;
-  const defs = `<defs><marker id="ch-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ch-ah" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ch-s" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ch-sh" d="M0,0 L10,5 L0,10 z"/></marker></defs>`;
-  return `<figure class="diagram chains">${title ? `<figcaption>${title}</figcaption>` : ""}<div class="scroll-x"><svg class="min-draw" viewBox="0 0 ${w} ${height}" role="img" aria-label="${esc(title || "chain")}">${defs}${s}</svg></div></figure>`;
+  return { box: `0 0 ${w} ${height}`, svg: chainDefs(id) + s };
+}
+
+function drawChainsColumns({ white = [], black = [], seen = [], fork, genesis = true }) {
+  const id = `ch${++uid}`;
+  const W = 340;
+  const cw = 122;
+  const ch = 46;
+  const xW = 14;
+  const xB = W - 14 - cw;
+  const top = genesis ? 104 : 40;
+  const gy = 70; // vertical step
+  const ys = (i) => top + i * gy;
+  const rows = Math.max(white.length, black.length);
+  const height = Math.max(ys(rows - 1), fork ? ys(fork.idx) + 62 : 0) + ch + 18;
+  let s = "";
+  if (genesis) {
+    s += `<g class="ch-gen"><rect x="${W / 2 - 50}" y="8" width="100" height="40" rx="12"/><text x="${W / 2}" y="26" text-anchor="middle">genesis</text><text class="sub" x="${W / 2}" y="41" text-anchor="middle">hash</text></g>`;
+    if (white.length) s += `<path class="ch-prev" d="M${W / 2 - 30},48 C${W / 2 - 30},62 ${xW + cw / 2},${top - 30} ${xW + cw / 2},${top - 6}" marker-end="url(#${id}-a)"/>`;
+    if (black.length) s += `<path class="ch-prev" d="M${W / 2 + 30},48 C${W / 2 + 30},62 ${xB + cw / 2},${top - 30} ${xB + cw / 2},${top - 6}" marker-end="url(#${id}-a)"/>`;
+  }
+  const col = (side, list, x) => {
+    let out = "";
+    list.forEach((r, i) => {
+      if (i > 0) out += `<line class="ch-prev" x1="${x + cw / 2}" y1="${ys(i - 1) + ch}" x2="${x + cw / 2}" y2="${ys(i) - 6}" marker-end="url(#${id}-a)"/>`;
+      out += chainCard(side, x, ys(i), cw, ch, r);
+    });
+    return out;
+  };
+  for (const [side, from, to] of seen) {
+    const fromX = side === "w" ? xW + cw : xB;
+    const toX = side === "w" ? xB - 4 : xW + cw + 4;
+    const y1 = ys(from) + ch / 2 + 8;
+    const y2 = ys(to) + ch / 2 - 8;
+    const mid = (fromX + toX) / 2;
+    s += `<path class="ch-seen" d="M${fromX},${y1} C${mid},${y1} ${mid},${y2} ${toX},${y2}" marker-end="url(#${id}-s)"/>`;
+  }
+  s += col("w", white, xW) + col("b", black, xB);
+  if (fork) {
+    const x = fork.side === "w" ? xW : xB;
+    const y0 = ys(fork.idx);
+    s += `<line class="ch-fork" x1="${x + cw / 2}" y1="${y0 + ch}" x2="${x + cw / 2}" y2="${y0 + 62}"/>`;
+    s += chainCard(fork.side, x, y0 + 62, cw, ch, { label: fork.label, sub: fork.sub, tone: "bad" }, " fork");
+  }
+  s += `<text class="ch-lane" x="${xW + cw / 2}" y="${top - 12}" text-anchor="middle" dx="${genesis ? -48 : 0}">White</text><text class="ch-lane" x="${xB + cw / 2}" y="${top - 12}" text-anchor="middle" dx="${genesis ? 48 : 0}">Black</text>`;
+  return { box: `0 0 ${W} ${height}`, svg: chainDefs(id) + s };
 }
 
 // ------------------------------------------------------------- small blocks

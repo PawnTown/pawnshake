@@ -250,6 +250,9 @@ figcaption { font: 600 12px/1.45 var(--mono); color: var(--ink-3); margin-bottom
 .hb { display: inline-block; width: 2.2em; text-align: center; padding: 4px 0; border-radius: 4px; color: var(--plum-deep); font-weight: 600; transition: transform 0.12s; }
 .hb:hover { transform: scale(1.3); position: relative; z-index: 2; box-shadow: 0 0 0 2px #fff; }
 .hb.first { box-shadow: inset 2px 0 0 rgba(31, 8, 35, 0.75); }
+.hx-readout { margin: 12px 0 0; min-height: 1.4em; font: 600 12px/1.4 var(--mono); color: var(--k-hash); }
+.hx-readout:empty::before { content: "Tap or hover a byte"; color: #7d5c82; font-weight: 400; }
+.hb.on { outline: 2px solid #fff; outline-offset: 1px; position: relative; z-index: 2; }
 .hx-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; font: 12px/1.3 var(--mono); }
 .hx-leg { background: none !important; color: #e9d3e6; display: inline-flex; align-items: center; gap: 7px; }
 .hx-leg b { color: #a983ad; font-weight: 400; }
@@ -460,9 +463,14 @@ td .pill { margin: 0; }
 .btn.ghost { color: var(--cream); border: 1.5px solid rgba(255, 255, 255, 0.35); }
 .btn.ghost:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .hero-art img { width: 100%; max-width: 540px; display: block; margin: 0 auto; filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.45)); animation: bob 6s ease-in-out infinite; }
-.hero-wire { margin: 32px 0 0; font: 12px/1.7 var(--mono); background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px; padding: 14px 16px; color: #d9b9dc; max-width: 34em; }
-.hero-wire b { color: #fff; font-weight: 600; }
-.hero-wire .hb { width: auto; padding: 2px 5px; margin: 1px; }
+.hero-wire { margin: 32px 0 0; background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 14px 16px 12px; max-width: 30em; }
+.hero-wire figcaption { color: #d9b9dc; font: 600 11px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 10px; }
+.hw-bytes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.hero-wire .hb { width: 2.4em; padding: 5px 0; font: 600 12px/1 var(--mono); border-radius: 5px; }
+.hw-more { font: 600 12px/1 var(--mono); color: #a983ad; margin-left: 4px; }
+.hw-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; font-size: 13px; color: #d9b9dc; }
+.hw-key span { display: inline-flex; align-items: center; gap: 6px; }
+.hw-key i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .hero-stats { max-width: 1240px; margin: 52px auto 0; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid rgba(255, 255, 255, 0.12); }
 .hero-stats div { padding: 22px 8px 28px 0; }
 .hero-stats b { display: block; font: 38px/1.1 var(--display); color: var(--magenta-2); }
@@ -548,10 +556,6 @@ td .pill { margin: 0; }
   .anchor { display: none; }
   .prose pre { font-size: 12px; padding: 16px; }
   .prose table { font-size: 14px; }
-  .prose table.cols-3 { min-width: 480px; }
-  .prose table.cols-4, .prose table.cols-5 { min-width: 620px; }
-  .prose table.cols-4 tr > :first-child, .prose table.cols-5 tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--cream); box-shadow: 1px 0 0 var(--rule); min-width: 112px; }
-  .prose table.cols-4 tr > th:first-child, .prose table.cols-5 tr > th:first-child { background: var(--paper-2); }
   .prose th, .prose td { padding: 10px 12px; }
 
   .callout { padding: 16px 18px; box-shadow: 4px 4px 0 var(--accent, var(--ink)); }
@@ -564,13 +568,9 @@ td .pill { margin: 0; }
   .attack-map { padding: 0 16px; }
   .attack-index a { font-size: 13px; padding: 5px 10px; }
 
-  /* diagrams keep a readable drawing width and scroll sideways */
   .diagram { padding: 14px 0 8px; }
   .diagram figcaption { padding: 0 14px; }
-  .diagram .scroll-x { padding: 0 6px; }
-  .diagram svg.min-draw { min-width: 560px; }
-  .scroll-x.can-scroll { -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); mask-image: linear-gradient(90deg, #000 82%, transparent); }
-  .scroll-x.at-end, .table-wrap.at-end { -webkit-mask-image: none; mask-image: none; }
+  .table-wrap.at-end { -webkit-mask-image: none; mask-image: none; }
   .table-wrap.can-scroll { -webkit-mask-image: linear-gradient(90deg, #000 85%, rgba(0, 0, 0, 0.25)); mask-image: linear-gradient(90deg, #000 85%, rgba(0, 0, 0, 0.25)); }
   .table-wrap + .scroll-hint { margin: -14px 0 18px; padding: 0 4px; }
   .scroll-hint { display: block; padding: 8px 14px 2px; font: 600 10.5px/1 var(--mono); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; }
@@ -583,8 +583,13 @@ td .pill { margin: 0; }
   .hb { width: 18px; padding: 3px 0; border-radius: 3px; }
   .hx-legend { font-size: 11px; gap: 5px 12px; }
 
-  .lf { padding: 8px 9px; }
-  .lf-name { font-size: 11.5px; }
+  /* byte strips become a list: one field per line, size and note beside it */
+  .lf-row { flex-direction: column; gap: 4px; }
+  .lf { flex-basis: auto; display: grid; grid-template-columns: minmax(0, 7.5em) 4.2em 1fr; align-items: baseline; column-gap: 10px; padding: 8px 12px; box-shadow: 0 2px 0 var(--ink); }
+  .lf:hover, .lf:focus { transform: none; box-shadow: 0 2px 0 var(--ink); }
+  .lf-name { font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+  .lf-size { margin: 0; white-space: nowrap; }
+  .lf-note { margin: 0; font-size: 12.5px; }
   .tl { padding: 16px 14px 12px; }
   .tl-row { grid-template-columns: 1fr; gap: 6px; margin: 12px 0; }
   .tl-bar > span { font-size: 10px; }
@@ -603,9 +608,45 @@ td .pill { margin: 0; }
   .hero h1 { font-size: 46px; text-shadow: 3px 3px 0 var(--magenta), 6px 6px 0 #5c1a63; }
   .hero .lead { font-size: 18px; margin-top: 18px; }
   .hero-cta .btn { flex: 1 1 auto; }
-  .hero-wire { font-size: 11px; }
+  .hero-wire .hb { width: 2.2em; font-size: 11px; }
   .hero-stats { grid-template-columns: repeat(2, 1fr); margin-top: 36px; }
   .hero-stats div { padding: 18px 8px 20px 0; }
   .hero-stats b { font-size: 30px; }
   .hero-stats span { font-size: 13.5px; }
+}
+
+/* card titles (not section headings, so no anchors and no TOC entry) */
+.card .card-title { margin: 0 0 6px !important; font-weight: 800; font-size: 18px; line-height: 1.3; color: var(--ink); }
+
+@media (max-width: 860px) {
+  .pager { grid-template-columns: 1fr; }
+  .pager > span:empty { display: none; }
+  .pg.next { grid-column: 1; }
+}
+
+/* diagrams come in two drawings: wide for screens with room, narrow for phones */
+.diagram svg.v-narrow { display: none; }
+@media (max-width: 640px) {
+  .diagram svg.v-wide { display: none; }
+  .diagram svg.v-narrow { display: block; max-width: 420px; margin: 0 auto; }
+  .diagram { padding: 14px 10px 10px; }
+  .diagram figcaption { padding: 0 6px; }
+}
+.ch-fork { stroke: var(--bad); stroke-width: 2; stroke-dasharray: 3 4; }
+
+/* phones: tables with three or more columns become one card per row */
+@media (max-width: 640px) {
+  .table-wrap:has(table.cols-3, table.cols-4, table.cols-5) { background: none; border: 0; border-radius: 0; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+  .table-wrap:has(table.cols-3, table.cols-4, table.cols-5) + .scroll-hint { display: none; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) { display: block; border: 0; background: none; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) tbody { display: grid; gap: 10px; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) tr:first-child:has(th) { display: none; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) tr { display: block; background: var(--cream); border: 1px solid var(--rule); border-radius: 14px; padding: 12px 14px; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) tr:hover td { background: none; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) td { display: grid; grid-template-columns: 7.2em 1fr; gap: 10px; padding: 5px 0; border: 0; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) td::before { content: attr(data-label); font: 600 10.5px/1.6 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) td:first-child { display: block; font-weight: 800; padding: 0 0 6px; margin-bottom: 4px; border-bottom: 1px dashed var(--rule); }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) td:first-child::before { content: none; }
+  .prose :is(table.cols-3, table.cols-4, table.cols-5) td:has(> .cv:empty) { display: none; }
+  .prose table td code { white-space: normal; overflow-wrap: anywhere; }
 }

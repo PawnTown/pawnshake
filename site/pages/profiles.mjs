@@ -13,20 +13,20 @@ ${layout("Profile", [
 
 <h2>The keys</h2>
 <table>
-<tr><th>Key</th><th>Parameter</th><th>Meaning</th></tr>
-<tr><td>1</td><td><code>j_min_ms</code></td><td>smallest transit allowance</td></tr>
-<tr><td>2</td><td><code>j_rtt_mult</code></td><td>allowance as a multiple of the round trip</td></tr>
-<tr><td>3</td><td><code>sample_window</code></td><td>transit samples per direction for the link estimate</td></tr>
-<tr><td>4</td><td><code>pause_budget_ms</code></td><td>outage time forgiven per game, shared by both players</td></tr>
-<tr><td>5</td><td><code>ping_interval_ms</code></td><td>live-check ping interval</td></tr>
-<tr><td>6</td><td><code>rate_tolerance_ppm</code></td><td>allowed clock rate difference</td></tr>
-<tr><td>7</td><td><code>checkpoint_interval_ms</code></td><td>presence checkpoints while online (hybrid)</td></tr>
-<tr><td>8</td><td><code>away_after_ms</code></td><td>how long the game waits on an absent player</td></tr>
-<tr><td>9</td><td><code>leave_with_arbiter</code></td><td>outcome for leaving when there is an arbiter: 0 cancel, 1 loss, 2 draw</td></tr>
-<tr><td>10</td><td><code>leave_offline</code></td><td>the same without an arbiter</td></tr>
-<tr><td>11</td><td><code>free_first_moves</code></td><td>the first move of each side costs no clock</td></tr>
-<tr><td>12</td><td><code>takebacks</code></td><td>takeback offers allowed</td></tr>
-<tr><td>13</td><td><code>report_wait_days</code></td><td>how long a pending game waits for the second report</td></tr>
+<tr><th>Parameter</th><th>Key</th><th>Meaning</th></tr>
+<tr><td><code>j_min_ms</code></td><td>1</td><td>smallest transit allowance</td></tr>
+<tr><td><code>j_rtt_mult</code></td><td>2</td><td>allowance as a multiple of the round trip</td></tr>
+<tr><td><code>sample_window</code></td><td>3</td><td>transit samples per direction for the link estimate</td></tr>
+<tr><td><code>pause_budget_ms</code></td><td>4</td><td>outage time forgiven per game, shared by both players</td></tr>
+<tr><td><code>ping_interval_ms</code></td><td>5</td><td>live-check ping interval</td></tr>
+<tr><td><code>rate_tolerance_ppm</code></td><td>6</td><td>allowed clock rate difference</td></tr>
+<tr><td><code>checkpoint_interval_ms</code></td><td>7</td><td>presence checkpoints while online (hybrid)</td></tr>
+<tr><td><code>away_after_ms</code></td><td>8</td><td>how long the game waits on an absent player</td></tr>
+<tr><td><code>leave_with_arbiter</code></td><td>9</td><td>outcome for leaving when there is an arbiter: 0 cancel, 1 loss, 2 draw</td></tr>
+<tr><td><code>leave_offline</code></td><td>10</td><td>the same without an arbiter</td></tr>
+<tr><td><code>free_first_moves</code></td><td>11</td><td>the first move of each side costs no clock</td></tr>
+<tr><td><code>takebacks</code></td><td>12</td><td>takeback offers allowed</td></tr>
+<tr><td><code>report_wait_days</code></td><td>13</td><td>how long a pending game waits for the second report</td></tr>
 </table>
 <p>A loss for leaving becomes a draw when the remaining player cannot mate, as for a flag.</p>
 

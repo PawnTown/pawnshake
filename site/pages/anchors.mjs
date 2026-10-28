@@ -15,7 +15,7 @@ ${layout("Head", [
 <h2>One head covers both chains</h2>
 <p>A head commits to its signer's whole chain through <code>prev</code>, and to the opponent's chain up to what it had seen through <code>seen_hash</code>. So a player that has just acknowledged the opponent's latest move anchors its own ACK, and that single head pins down every record of both players. The server learns sequence numbers and timing, never the moves.</p>
 ${chains({
-  title: "Anchoring Black's ACK (magenta) commits to everything left of it, on both rows.",
+  title: "Anchoring Black's ACK (magenta) commits to every record before it, in both chains (green).",
   white: [
     { label: "e4", sub: "seq 1", tone: "ok" },
     { label: "ACK", sub: "seq 2", tone: "ok" },

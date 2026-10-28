@@ -13,7 +13,11 @@ export default {
       <h1>Chess you can sign.</h1>
       <p class="lead">Two players sign every move and send it straight to each other. One network hop per move, a game that can run with no server at all, and a cheater who always leaves proof behind.</p>
       <div class="hero-cta"><a class="btn primary" href="${href("concepts")}">How it works</a><a class="btn ghost" href="${href("attacks")}">See the attacks it stops</a></div>
-      <p class="hero-wire"><b>1. e4</b>, as it travels: ${cell("int", b.slice(0, 1))}${cell("int", b.slice(1, 2))}${cell("int", b.slice(2, 4))}${cell("op", b.slice(4, 5))}${cell("sig", b.slice(5, 9))}<span style="color:#a983ad"> + 60 more signature bytes</span><br>seq · seen · time · <b>move code 13</b> · Ed25519 signature</p>
+      <figure class="hero-wire">
+        <figcaption>1. e4, exactly as it travels</figcaption>
+        <div class="hw-bytes">${cell("int", b.slice(0, 1))}${cell("int", b.slice(1, 2))}${cell("int", b.slice(2, 4))}${cell("op", b.slice(4, 5))}${cell("sig", b.slice(5, 9))}<span class="hw-more">+60</span></div>
+        <div class="hw-key"><span><i class="k-int"></i>seq, seen, time</span><span><i class="k-op"></i>move code 13</span><span><i class="k-sig"></i>64-byte signature</span></div>
+      </figure>
     </div>
     <div class="hero-art"><img src="assets/logo.png" alt="Pawnshake: a pink milkshake with a pawn on the cup"></div>
   </div>
@@ -49,27 +53,27 @@ ${sequence(
 
 <h2>Why bother</h2>
 <div class="grid grid-3">
-  <div class="card"><span class="kicker">Speed</span><h3>One hop per move</h3><p>A move goes player to player. A server, when there is one, is told beside the move, never in front of it.</p></div>
-  <div class="card"><span class="kicker">Proof</span><h3>Cheating leaves evidence</h3><p>Sending two different moves for one turn means two signatures for one number. That pair is a fork, and the signer loses.</p></div>
-  <div class="card"><span class="kicker">Offline</span><h3>Games without internet</h3><p>Play over Bluetooth or a LAN. Upload later: the chain proves every move, and the server saves it like any game.</p></div>
+  <div class="card"><span class="kicker">Speed</span><p class="card-title">One hop per move</p><p>A move goes player to player. A server, when there is one, is told beside the move, never in front of it.</p></div>
+  <div class="card"><span class="kicker">Proof</span><p class="card-title">Cheating leaves evidence</p><p>Sending two different moves for one turn means two signatures for one number. That pair is a fork, and the signer loses.</p></div>
+  <div class="card"><span class="kicker">Offline</span><p class="card-title">Games without internet</p><p>Play over Bluetooth or a LAN. Upload later: the chain proves every move, and the server saves it like any game.</p></div>
 </div>
 
 <h2>Three ways to play</h2>
 <p>The game's genesis fixes how much of a referee (the <strong>arbiter</strong>) takes part. The records are the same in all three.</p>
 <div class="grid grid-3">
-  <a class="card mode-card" href="${href("modes")}#offline"><span class="glyph">0</span><span class="kicker">arbiter none</span><h3>Offline</h3><p>Both devices keep the clock from signed timestamps and check each other live. Someone hops off: canceled, still saved.</p><span class="pill">peer clocks</span></a>
-  <a class="card mode-card" href="${href("modes")}#hybrid"><span class="glyph">1</span><span class="kicker">arbiter checkpoints</span><h3>Hybrid</h3><p>Peer clocks, plus server checkpoints that prove who is still there. The player who goes away loses.</p><span class="pill">peer clocks</span><span class="pill hot">presence</span></a>
-  <a class="card mode-card" href="${href("modes")}#online"><span class="glyph">2</span><span class="kicker">arbiter full</span><h3>Online</h3><p>The server timestamps every record through anchors and keeps the official clock. Lag is forgiven from a bounded quota.</p><span class="pill hot">anchored clocks</span></a>
+  <a class="card mode-card" href="${href("modes")}#offline"><span class="glyph">0</span><span class="kicker">arbiter none</span><p class="card-title">Offline</p><p>Both devices keep the clock from signed timestamps and check each other live. Someone hops off: canceled, still saved.</p><span class="pill">peer clocks</span></a>
+  <a class="card mode-card" href="${href("modes")}#hybrid"><span class="glyph">1</span><span class="kicker">arbiter checkpoints</span><p class="card-title">Hybrid</p><p>Peer clocks, plus server checkpoints that prove who is still there. The player who goes away loses.</p><span class="pill">peer clocks</span><span class="pill hot">presence</span></a>
+  <a class="card mode-card" href="${href("modes")}#online"><span class="glyph">2</span><span class="kicker">arbiter full</span><p class="card-title">Online</p><p>The server timestamps every record through anchors and keeps the official clock. Lag is forgiven from a bounded quota.</p><span class="pill hot">anchored clocks</span></a>
 </div>
 
 ${callout("rule", "The one rule", `<p>A client signs at most one record per sequence number. Everything else that goes wrong only voids a record. Breaking this rule is the only thing a player is ever punished for, and an honest client can never break it.</p>`)}
 
 <h2>Where to go next</h2>
 <div class="grid grid-2">
-  <a class="card" href="${href("concepts")}"><span class="kicker">5 minutes</span><h3>How it works</h3><p>Records, chains, forks and anchors, with pictures.</p></a>
-  <a class="card" href="${href("bytes")}"><span class="kicker">Byte by byte</span><h3>Byte layouts</h3><p>Every payload drawn from the real test vectors.</p></a>
-  <a class="card" href="${href("attacks")}"><span class="kicker">Security</span><h3>Attack gallery</h3><p>Twenty-odd tricks a cheater could try, and why each one fails.</p></a>
-  <a class="card" href="${href("libraries")}"><span class="kicker">Build</span><h3>Libraries</h3><p>Go, TypeScript and Dart, byte-identical on the same vectors.</p></a>
+  <a class="card" href="${href("concepts")}"><span class="kicker">5 minutes</span><p class="card-title">How it works</p><p>Records, chains, forks and anchors, with pictures.</p></a>
+  <a class="card" href="${href("bytes")}"><span class="kicker">Byte by byte</span><p class="card-title">Byte layouts</p><p>Every payload drawn from the real test vectors.</p></a>
+  <a class="card" href="${href("attacks")}"><span class="kicker">Security</span><p class="card-title">Attack gallery</p><p>28 tricks a cheater could try, and why each one fails.</p></a>
+  <a class="card" href="${href("libraries")}"><span class="kicker">Build</span><p class="card-title">Libraries</p><p>Go, TypeScript and Dart, byte-identical on the same vectors.</p></a>
 </div>
 `,
 };

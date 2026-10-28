@@ -69,7 +69,7 @@ function certSegs(hex, off, who = "") {
 export default {
   title: "Byte layouts",
   nav: "Byte layouts",
-  lead: "Every payload, field by field. The coloured dumps are the real bytes from the conformance vectors that the Go, TypeScript and Dart libraries all reproduce. Hover a byte to see which field it belongs to.",
+  lead: "Every payload, field by field. The coloured dumps are the real bytes from the conformance vectors that the Go, TypeScript and Dart libraries all reproduce. Hover or tap a byte to see which field it belongs to.",
   body: ({ hexdump, layout, varintLen, vectors, callout, href }) => {
     const c = vectors.core;
     const [move, ackB, , , verdict] = c.chain.records;

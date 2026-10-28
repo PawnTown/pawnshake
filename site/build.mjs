@@ -5,6 +5,7 @@
 //
 //   node site/build.mjs            build
 //   node site/build.mjs --serve    build, then serve site/out on :4321
+import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
@@ -44,6 +45,11 @@ const href = (slug) => (slug === "index" ? "./" : `${slug}.html`);
 
 const ctx = { ...d, vectors, version, REPO, href };
 
+// Assets are named with a hash of their content, so a phone that cached the
+// last deploy fetches the new stylesheet instead of mixing old and new.
+const bust = (file) => createHash("sha256").update(readFileSync(join(SITE, "assets", file))).digest("hex").slice(0, 10);
+const asset = (file) => `assets/${file}?v=${bust(file)}`;
+
 // Headings get ids; h2s make the "On this page" list.
 function withAnchors(html) {
   const toc = [];
@@ -62,6 +68,27 @@ function withAnchors(html) {
     return `<h${lvl} id="${id}"${attrs}><a class="anchor" href="#${id}" aria-hidden="true">#</a>${inner}</h${lvl}>`;
   });
   return { html: out, toc };
+}
+
+// Gives each <td> a data-label with its column's header text (a cell that
+// spans columns reads "Bullet to Classical"). Phones stack wide tables as
+// cards and show these labels.
+function labelCells(inner) {
+  const head = (inner.match(/<tr>([\s\S]*?)<\/tr>/) || ["", ""])[1];
+  const labels = [...head.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((m) => m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim());
+  if (!labels.length) return inner;
+  return inner.replace(/<tr>([\s\S]*?)<\/tr>/g, (row, cells) => {
+    if (/<th/.test(cells)) return row;
+    let col = 0;
+    const out = cells.replace(/<td([^>]*)>([\s\S]*?)<\/td>/g, (_, attrs, body) => {
+      const span = Number((attrs.match(/colspan="(\d+)"/) || [0, 1])[1]);
+      const label = span > 1 ? (col + span >= labels.length && col <= 1 ? "All" : `${labels[col] || ""} to ${labels[col + span - 1] || ""}`) : labels[col] || "";
+      col += span;
+      // one wrapper, so a stacked cell is "label | value" however mixed the value is
+      return `<td${attrs} data-label="${d.esc(label)}"><span class="cv">${body}</span></td>`;
+    });
+    return `<tr>${out}</tr>`;
+  });
 }
 
 function sidebar(current) {
@@ -91,7 +118,7 @@ function render(p) {
   const html = anchored.replace(/<table>([\s\S]*?)<\/table>/g, (_, inner) => {
     const firstRow = (inner.match(/<tr>([\s\S]*?)<\/tr>/) || ["", ""])[1];
     const cols = (firstRow.match(/<t[hd][\s>]/g) || []).length;
-    return `<div class="table-wrap"><table class="cols-${Math.min(cols, 5)}">${inner}</table></div>`;
+    return `<div class="table-wrap"><table class="cols-${Math.min(cols, 5)}">${labelCells(inner)}</table></div>`;
   });
   const isHome = p.slug === "index";
   const title = isHome ? "Pawnshake: signed chess, peer to peer" : `${p.title} · Pawnshake`;
@@ -114,7 +141,7 @@ function render(p) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Shrikhand&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,800;1,400&family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="${asset("site.css")}">
 </head>
 <body class="${isHome ? "home" : "doc"}">
 <header class="topbar">
@@ -138,7 +165,7 @@ ${isHome ? hero : ""}
   </main>
   ${tocHtml}
 </div>
-<script src="assets/site.js" defer></script>
+<script src="${asset("site.js")}" defer></script>
 </body>
 </html>
 `;

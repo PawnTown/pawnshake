@@ -28,11 +28,11 @@
     pre.appendChild(b);
   }
 
-  // A diagram wider than the screen fades at its right edge until scrolled
+  // A table wider than the screen fades at its right edge until scrolled
   // to the end, with a small hint under it.
-  const scrollers = [...document.querySelectorAll(".diagram .scroll-x, .table-wrap")];
+  const scrollers = [...document.querySelectorAll(".table-wrap, .diagram .scroll-x")];
   const mark = (el) => {
-    const can = el.scrollWidth > el.clientWidth + 2;
+    const can = el.scrollWidth > el.clientWidth + 8;
     el.classList.toggle("can-scroll", can);
     el.classList.toggle("at-end", can && el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
     const hint = el.nextElementSibling;
@@ -47,6 +47,22 @@
     mark(el);
   }
   addEventListener("resize", () => scrollers.forEach(mark));
+  // widths change once the web fonts arrive
+  document.fonts?.ready.then(() => scrollers.forEach(mark));
+
+  // Byte dumps: hover or tap a byte to read which field it belongs to.
+  for (const dump of document.querySelectorAll(".hexdump")) {
+    const out = dump.querySelector(".hx-readout");
+    let on = null;
+    const show = (hb) => {
+      on?.classList.remove("on");
+      on = hb;
+      hb.classList.add("on");
+      out.textContent = `${hb.textContent}  ${hb.dataset.f}`;
+    };
+    dump.addEventListener("pointerover", (e) => e.target.matches?.(".hb") && show(e.target));
+    dump.addEventListener("click", (e) => e.target.matches?.(".hb") && show(e.target));
+  }
 
   // The attack map starts folded on phones, where it is a long list.
   if (matchMedia("(max-width: 860px)").matches) document.querySelectorAll("details.attack-map").forEach((d) => (d.open = false));
