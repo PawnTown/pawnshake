@@ -123,7 +123,7 @@ export function sequence(lanes, rows, { width = 720, title } = {}) {
       (t) => `<marker id="ah-${t}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah t-${t}" d="M0,0 L10,5 L0,10 z"/></marker>`,
     )
     .join("");
-  return `<figure class="diagram">${title ? `<figcaption>${title}</figcaption>` : ""}<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(title || "sequence diagram")}"><defs>${markers}</defs>${lifelines}${body}</svg></figure>`;
+  return `<figure class="diagram">${title ? `<figcaption>${title}</figcaption>` : ""}<div class="scroll-x"><svg class="min-draw" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(title || "sequence diagram")}"><defs>${markers}</defs>${lifelines}${body}</svg></div></figure>`;
 }
 
 // ------------------------------------------------------------- chains
@@ -152,7 +152,7 @@ export function chains({ white = [], black = [], seen = [], fork, title, width =
     if (black.length) s += `<path class="ch-prev" d="M94,${gy + 30} C106,${gy + 30} 100,${yB + ch / 2} ${left - 8},${yB + ch / 2}" marker-end="url(#ch-a)"/>`;
   }
   const card = (side, i, r, y, extra = "") =>
-    `<g class="ch-card s-${side} t-${r.tone || "plain"}${extra}"><rect x="${xs(i)}" y="${y}" width="${cw}" height="${ch}" rx="10"/><text x="${xs(i) + cw / 2}" y="${y + 20}" text-anchor="middle">${esc(r.label)}</text><text class="sub" x="${xs(i) + cw / 2}" y="${y + 36}" text-anchor="middle">${esc(r.sub || "")}</text></g>`;
+    `<g class="ch-card s-${side} ct-${r.tone || "plain"}${extra}"><rect x="${xs(i)}" y="${y}" width="${cw}" height="${ch}" rx="10"/><text x="${xs(i) + cw / 2}" y="${y + 20}" text-anchor="middle">${esc(r.label)}</text><text class="sub" x="${xs(i) + cw / 2}" y="${y + 36}" text-anchor="middle">${esc(r.sub || "")}</text></g>`;
   const row = (side, list, y) => {
     let out = "";
     list.forEach((r, i) => {
@@ -174,7 +174,7 @@ export function chains({ white = [], black = [], seen = [], fork, title, width =
   }
   s += `<text class="ch-lane" x="${left}" y="${yW - 10}">White</text><text class="ch-lane" x="${left}" y="${yB + ch + 22}">Black</text>`;
   const defs = `<defs><marker id="ch-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ch-ah" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ch-s" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ch-sh" d="M0,0 L10,5 L0,10 z"/></marker></defs>`;
-  return `<figure class="diagram chains">${title ? `<figcaption>${title}</figcaption>` : ""}<div class="scroll-x"><svg viewBox="0 0 ${w} ${height}" style="min-width:${Math.min(w, 640)}px" role="img" aria-label="${esc(title || "chain")}">${defs}${s}</svg></div></figure>`;
+  return `<figure class="diagram chains">${title ? `<figcaption>${title}</figcaption>` : ""}<div class="scroll-x"><svg class="min-draw" viewBox="0 0 ${w} ${height}" role="img" aria-label="${esc(title || "chain")}">${defs}${s}</svg></div></figure>`;
 }
 
 // ------------------------------------------------------------- small blocks

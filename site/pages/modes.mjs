@@ -93,7 +93,7 @@ ${sequence(
 <div class="grid grid-3">
   <div class="card"><span class="kicker">Use offline when</span><p>there is no internet, or both players trust the radio more than the network. Best for over-the-board play with a board connected to each phone.</p></div>
   <div class="card"><span class="kicker">Use hybrid when</span><p>the players are nearby and want the speed of a direct link, but a game must still have a winner when someone leaves.</p></div>
-  <div class="card dark"><span class="kicker">Use online when</span><p>players are far apart, strangers, or the game is rated and the clock must be official.</p></div>
+  <div class="card"><span class="kicker">Use online when</span><p>players are far apart, strangers, or the game is rated and the clock must be official.</p></div>
 </div>
 `,
 };

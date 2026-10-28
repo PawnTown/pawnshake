@@ -1,10 +1,19 @@
-// Mobile navigation, copy buttons on code, and the "On this page" highlight.
+// Phone drawer, copy buttons on code, scroll hints on wide diagrams and the
+// "On this page" highlight.
 (() => {
+  const body = document.body;
   const toggle = document.querySelector(".nav-toggle");
-  toggle?.addEventListener("click", () => {
-    const open = document.body.classList.toggle("nav-open");
-    toggle.setAttribute("aria-expanded", String(open));
+  const setOpen = (open) => {
+    body.classList.toggle("nav-open", open);
+    toggle?.setAttribute("aria-expanded", String(open));
+    toggle?.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+  };
+  toggle?.addEventListener("click", () => setOpen(!body.classList.contains("nav-open")));
+  document.querySelector(".drawer")?.addEventListener("click", (e) => {
+    if (e.target.closest("[data-close], a")) setOpen(false);
   });
+  addEventListener("keydown", (e) => e.key === "Escape" && setOpen(false));
+  matchMedia("(min-width: 861px)").addEventListener("change", (m) => m.matches && setOpen(false));
 
   for (const pre of document.querySelectorAll(".prose pre")) {
     const b = document.createElement("button");
@@ -12,12 +21,35 @@
     b.type = "button";
     b.textContent = "copy";
     b.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(pre.innerText.replace(/\ncopy$/, ""));
+      await navigator.clipboard.writeText(pre.querySelector("code")?.innerText ?? pre.innerText);
       b.textContent = "copied";
       setTimeout(() => (b.textContent = "copy"), 1400);
     });
     pre.appendChild(b);
   }
+
+  // A diagram wider than the screen fades at its right edge until scrolled
+  // to the end, with a small hint under it.
+  const scrollers = [...document.querySelectorAll(".diagram .scroll-x, .table-wrap")];
+  const mark = (el) => {
+    const can = el.scrollWidth > el.clientWidth + 2;
+    el.classList.toggle("can-scroll", can);
+    el.classList.toggle("at-end", can && el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
+    const hint = el.nextElementSibling;
+    if (hint?.classList.contains("scroll-hint")) hint.hidden = !can;
+  };
+  for (const el of scrollers) {
+    const hint = document.createElement("span");
+    hint.className = "scroll-hint";
+    hint.textContent = el.classList.contains("table-wrap") ? "Swipe to see the whole table" : "Swipe to see the whole diagram";
+    el.after(hint);
+    el.addEventListener("scroll", () => mark(el), { passive: true });
+    mark(el);
+  }
+  addEventListener("resize", () => scrollers.forEach(mark));
+
+  // The attack map starts folded on phones, where it is a long list.
+  if (matchMedia("(max-width: 860px)").matches) document.querySelectorAll("details.attack-map").forEach((d) => (d.open = false));
 
   const links = [...document.querySelectorAll(".toc a")];
   if (!links.length) return;
@@ -30,7 +62,7 @@
       if (!first) return;
       links.forEach((a) => a.classList.toggle("on", a === byId.get(first)));
     },
-    { rootMargin: "-70px 0px -65% 0px" },
+    { rootMargin: "-80px 0px -65% 0px" },
   );
   for (const id of byId.keys()) {
     const h = document.getElementById(id);

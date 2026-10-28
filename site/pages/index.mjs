@@ -9,7 +9,7 @@ export default {
     return `<section class="hero">
   <div class="hero-in">
     <div>
-      <p class="eyebrow" style="color:#ff8cc6">The Pawnshake protocol</p>
+      <p class="eyebrow">The Pawnshake protocol</p>
       <h1>Chess you can sign.</h1>
       <p class="lead">Two players sign every move and send it straight to each other. One network hop per move, a game that can run with no server at all, and a cheater who always leaves proof behind.</p>
       <div class="hero-cta"><a class="btn primary" href="${href("concepts")}">How it works</a><a class="btn ghost" href="${href("attacks")}">See the attacks it stops</a></div>
@@ -59,7 +59,7 @@ ${sequence(
 <div class="grid grid-3">
   <a class="card mode-card" href="${href("modes")}#offline"><span class="glyph">0</span><span class="kicker">arbiter none</span><h3>Offline</h3><p>Both devices keep the clock from signed timestamps and check each other live. Someone hops off: canceled, still saved.</p><span class="pill">peer clocks</span></a>
   <a class="card mode-card" href="${href("modes")}#hybrid"><span class="glyph">1</span><span class="kicker">arbiter checkpoints</span><h3>Hybrid</h3><p>Peer clocks, plus server checkpoints that prove who is still there. The player who goes away loses.</p><span class="pill">peer clocks</span><span class="pill hot">presence</span></a>
-  <a class="card mode-card dark" href="${href("modes")}#online"><span class="glyph" style="color:#4a1850">2</span><span class="kicker">arbiter full</span><h3>Online</h3><p>The server timestamps every record through anchors and keeps the official clock. Lag is forgiven from a bounded quota.</p><span class="pill hot">anchored clocks</span></a>
+  <a class="card mode-card" href="${href("modes")}#online"><span class="glyph">2</span><span class="kicker">arbiter full</span><h3>Online</h3><p>The server timestamps every record through anchors and keeps the official clock. Lag is forgiven from a bounded quota.</p><span class="pill hot">anchored clocks</span></a>
 </div>
 
 ${callout("rule", "The one rule", `<p>A client signs at most one record per sequence number. Everything else that goes wrong only voids a record. Breaking this rule is the only thing a player is ever punished for, and an honest client can never break it.</p>`)}

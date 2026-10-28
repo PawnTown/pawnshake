@@ -54,8 +54,10 @@ function withAnchors(html) {
       .replace(/&[a-z]+;/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-  const out = html.replace(/<h([23])(?![^>]*\bid=)([^>]*)>([\s\S]*?)<\/h\1>/g, (_, lvl, attrs, inner) => {
-    const id = slug(inner);
+  const out = html.replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/g, (_, lvl, rawAttrs, inner) => {
+    const given = rawAttrs.match(/\bid="([^"]+)"/);
+    const id = given ? given[1] : slug(inner);
+    const attrs = rawAttrs.replace(/\s*\bid="[^"]+"/, "");
     if (lvl === "2") toc.push({ id, text: inner.replace(/<[^>]+>/g, "") });
     return `<h${lvl} id="${id}"${attrs}><a class="anchor" href="#${id}" aria-hidden="true">#</a>${inner}</h${lvl}>`;
   });
@@ -84,7 +86,13 @@ function pager(slug) {
 
 function render(p) {
   const raw = p.body(ctx);
-  const { html, toc } = withAnchors(raw);
+  const { html: anchored, toc } = withAnchors(raw);
+  // Tables scroll sideways on narrow screens; wide ones keep a readable width.
+  const html = anchored.replace(/<table>([\s\S]*?)<\/table>/g, (_, inner) => {
+    const firstRow = (inner.match(/<tr>([\s\S]*?)<\/tr>/) || ["", ""])[1];
+    const cols = (firstRow.match(/<t[hd][\s>]/g) || []).length;
+    return `<div class="table-wrap"><table class="cols-${Math.min(cols, 5)}">${inner}</table></div>`;
+  });
   const isHome = p.slug === "index";
   const title = isHome ? "Pawnshake: signed chess, peer to peer" : `${p.title} · Pawnshake`;
   const tocHtml =
@@ -97,6 +105,7 @@ function render(p) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#fdf6e9">
 <title>${title}</title>
 <meta name="description" content="${d.esc(p.description || p.lead || "The Pawnshake protocol: signed, peer-to-peer chess games with a clock.").replace(/<[^>]+>/g, "")}">
 <meta property="og:title" content="${title}">
@@ -109,11 +118,15 @@ function render(p) {
 </head>
 <body class="${isHome ? "home" : "doc"}">
 <header class="topbar">
-  <button class="nav-toggle" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
+  <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
   <a class="brand" href="./"><img src="assets/icon.png" alt="" width="34" height="34"><span>Pawnshake</span></a>
   <span class="ver">v${version} · draft</span>
   <nav class="top-links"><a href="${href("concepts")}">Docs</a><a href="${href("attacks")}">Attacks</a><a href="${href("libraries")}">Libraries</a><a class="gh" href="${REPO}">GitHub</a></nav>
 </header>
+<div class="drawer" id="drawer" aria-label="Documentation">
+  <div class="drawer-scrim" data-close></div>
+  <nav class="drawer-panel">${sidebar(p.slug)}<a class="drawer-gh" href="${REPO}">Pawnshake on GitHub</a></nav>
+</div>
 ${isHome ? hero : ""}
 <div class="shell">
   <nav class="sidebar" aria-label="Documentation">${sidebar(p.slug)}</nav>

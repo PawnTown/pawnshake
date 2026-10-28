@@ -51,7 +51,7 @@ ${layout("Profile", [
 
 <h2>What that means for players</h2>
 <div class="grid grid-2">
-  <div class="card dark"><span class="kicker">With an arbiter</span><p>Online and hybrid games: the player who goes away loses, or draws if the other cannot mate.</p></div>
+  <div class="card"><span class="kicker">With an arbiter</span><p>Online and hybrid games: the player who goes away loses, or draws if the other cannot mate.</p></div>
   <div class="card"><span class="kicker">Without one</span><p>Offline games: if one player hops off, the game is canceled. It is still uploaded and saved in both collections, unrated, with all its moves.</p></div>
 </div>
 <p>Outages up to the pause budget are paused time; longer ones cancel an offline game unless both players resume.</p>

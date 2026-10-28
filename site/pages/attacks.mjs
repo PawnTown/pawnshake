@@ -303,8 +303,8 @@ export default {
       .join("");
 
     return `
-${callout("rule", "Read this first", `<p>Almost every attack on this page is one of two things: an attempt to tell two parties two different stories, which needs two signed records for one number (a <a href="${href("security")}#the-one-punishable-act" style="color:#ff8cc6">fork</a>), or a lie about time, which the clocks bound to a few milliseconds or turn into a game without a result.</p>`)}
-<nav class="attack-map" aria-label="All attacks">${index}</nav>
+${callout("rule", "Read this first", `<p>Almost every attack on this page is one of two things: an attempt to tell two parties two different stories, which needs two signed records for one number (a <a href="${href("security")}#the-one-punishable-act">fork</a>), or a lie about time, which the clocks bound to a few milliseconds or turn into a game without a result.</p>`)}
+<details class="attack-map" open><summary>All ${groups.flatMap((g) => g.items).length} attacks at a glance</summary>${index}</details>
 ${groups.map((g) => `<h2>${g.title}</h2>${g.items.join("")}`).join("")}
 
 <h2>The honest limit</h2>
