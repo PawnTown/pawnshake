@@ -1,0 +1,16 @@
+name: pawnshake
+description: Pawnshake protocol, signed peer-to-peer chess games (Dart implementation).
+version: 0.1.0
+repository: https://github.com/PawnTown/pawnshake
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  crypto: ^3.0.6
+
+dev_dependencies:
+  test: ^1.25.0
+  coverage: ^1.11.0
+  lints: ^5.0.0

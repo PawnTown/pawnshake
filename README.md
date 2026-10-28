@@ -21,7 +21,7 @@ signatures alone. Everything that is policy rather than protocol (allowances,
 pause budget, how long a player may be gone, what leaving costs) is a
 **rules profile** signed into each game, so every app can tune it.
 
-Status: **draft**. The specification is still moving. Go and TypeScript
+Status: **draft**. The specification is still moving. Go, TypeScript and Dart
 implement certificates, rules profiles, the genesis handshake, records (header,
 body, wire format), chains with fork detection, anchor heads and receipts, the
 canonical order, the lag quota and move codes; both are pinned to the same
@@ -36,6 +36,7 @@ vectors. Not implemented yet: the peer clock function and live checks.
 | [`vectors/`](vectors) | conformance test vectors every implementation must pass |
 | [`go/`](go) | Go implementation (`github.com/PawnTown/pawnshake/go`), 100 % test coverage |
 | [`js/`](js) | TypeScript implementation (npm `pawnshake`), 100 % test coverage |
+| [`dart/`](dart) | Dart implementation (pub `pawnshake`, for Flutter), 100 % test coverage |
 | [`viz/index.html`](viz/index.html) | interactive visualizer: step through scenarios, inspect every byte |
 
 The visualizer is a single self-contained HTML file: open it in a browser. Its
@@ -59,7 +60,15 @@ npm install
 npm run typecheck && npm run coverage
 ```
 
+## Dart
+
+```bash
+cd dart
+dart pub get
+tool/coverage.sh
+```
+
 ## Planned
 
-- the peer clock function and live checks, in both languages
-- `rust/` (crate `pawnshake`, the core for Flutter), `dart/` (pub `pawnshake`)
+- the peer clock function and live checks, in every language
+- `rust/` (crate `pawnshake`)
