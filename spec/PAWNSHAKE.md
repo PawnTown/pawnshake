@@ -81,7 +81,7 @@ deterministic nonces.
   never verifies. The ZIP-215 test vectors are part of the conformance suite.
 - Signing is deterministic, but a dishonest signer can still make a second
   valid signature for the same payload: records are identified by their
-  payload hash, never by signature bytes (see "The one rule").
+  record id, never by signature bytes (see "The one rule").
 - Keys live in Keychain / Keystore / IndexedDB as software keys. The phones'
   secure hardware only signs P-256 ECDSA; it would not stop a modified client
   anyway, since that client holds its own key.
@@ -221,7 +221,7 @@ varint  seen       the opponent's highest seq the signer had applied, 0 = none
 varint  at         the signer's clock in ms since it handled START
 u8      op
 ...     args
-[64]    Ed25519 signature over the signed payload (see Signatures)
+[64]    Ed25519 signature over the header (see "Header and body")
 ```
 
 Varints are unsigned LEB128 and must be minimal (a longer encoding of the same
@@ -233,28 +233,38 @@ A move is 70 bytes in the common case (seq and seen below 128, a game under
 35 minutes so `at` fits 3 bytes), 64 of them signature. An ACK or a resign is
 70 bytes as well.
 
-### Signed payload
+### Header and body
 
-Rebuilt by every verifier from its own state, never sent between players:
+Rebuilt by every verifier from its own state, never sent between players. A
+record is signed in two layers: a short **header** that names the record, and
+a **body** with everything else, which the header commits to by its hash.
 
 ```
-"PSREC001"  [8]
-genesis_hash [32]
-signer      u8      0 white, 1 black, 2 server
-seq         u32 BE
-prev        [32]    SHA-256 of the signer's payload seq-1, genesis_hash for seq 1
-seen        u32 BE
-seen_hash   [32]    SHA-256 of the opponent's payload #seen, zeros for 0
-at          u32 BE  the signer's clock, ms since it handled START
-op          u8
-args               exactly the wire bytes
-MOVE only:  ply u16 BE, legal u8   (the ply the move creates, number of legal moves)
+body      = prev [32]          record id of the signer's seq-1, genesis_hash for seq 1
+          | seen u32 BE
+          | seen_hash [32]     record id of the opponent's record #seen, zeros for 0
+          | at u32 BE          the signer's clock, ms since it handled START
+          | op u8
+          | args               exactly the wire bytes
+          | MOVE only: ply u16 BE, legal u8   (the ply the move creates, number of legal moves)
+
+header    = "PSREC001" [8] | genesis_hash [32] | signer u8 (0 white, 1 black, 2 server)
+          | seq u32 BE | body_hash [32]                 77 bytes
+
+body_hash = SHA-256(body)
+record id = SHA-256(header)
+signature = Ed25519 over the header
 ```
 
-Every record therefore commits to its signer's whole history and to everything
-of the opponent's it had seen. A server record has two `seen` fields (white,
-black) in place of one. The record hash used everywhere (`prev`, `seen_hash`,
-anchors) is SHA-256 of the payload.
+A server record has two `seen` / `seen_hash` pairs (white, black) in its body
+in place of one.
+
+Every record commits through `prev` to its signer's whole history, and
+through `seen_hash` to everything of the opponent's it had seen. Because the
+signature covers only the header, a record's **head** (signer, seq,
+body_hash, signature) can be checked by anyone holding the genesis without
+the moves, and it still commits to the whole game up to that point. That is
+what anchors use (see "Anchors").
 
 `legal` is there because a move code only means something on a known position:
 if two engines disagree about the legal moves, the signature fails instead of
@@ -292,7 +302,7 @@ A client signs at most one record per `(genesis_hash, seq)`.
 - Signed bytes are written durably BEFORE they are sent or anchored.
 - A resend sends the stored bytes, never a re-signed record.
 
-Two records with one `seq` whose signed **payloads** differ, both validly
+Two records (or heads) with one `seq` whose **headers** differ, both validly
 signed, are a **fork**: the signer loses the game (`TERMINATION_FORK`), whenever both records come together
 (on the opponent's device, in anchors, or in a report). That is the only thing
 a player is ever punished for. An honest client following the rule above can
@@ -300,9 +310,9 @@ never produce it. Everything else that is wrong (bad signature, illegal or
 out-of-range code, an op not allowed at its point) makes that record void,
 without penalty, and the chain goes on after it.
 
-Records are identified by the hash of their signed payload, never by their wire
-bytes. A signer can produce more than one valid signature for the same payload
-(a different nonce), so two copies with equal payloads and different signature
+Records are identified by their record id (the hash of the header), never by
+their wire bytes. A signer can produce more than one valid signature for the same payload
+(a different nonce), so two copies with equal headers and different signature
 bytes are the same record: a duplicate, not a fork.
 
 ## Applying records: one deterministic order
@@ -367,37 +377,55 @@ Over the live session with the server, or `POST /pawnshake/v1/anchors`, same bod
 ```
 Anchor {
   genesis      bytes     required the first time the server sees the game
-  records      bytes[]   signed payloads + signatures, ascending per signer;
-                         at least the head of one player, usually both heads
+  heads        Head[]    usually one: the sender's own newest record
+  records      bytes[]   optional: full records, only where the server must read them
   state_hash   bytes     optional, SHA-256 of the canonical state at these heads
 }
+
+Head = signer u8 | seq varint | body_hash [32] | signature [64]      about 98 bytes
 ```
 
-Records travel as **full signed payloads**, not as hashes, for one reason: a
-bare hash can be computed before it is signed. A player could anchor the
-hashes of all 20..218 possible next moves the moment its turn starts, think
-for a minute, then play one whose hash was anchored early and claim it was
-made in no time. With signed payloads, anchoring two candidates for one `seq`
-is a fork and loses the game.
+**One head is enough.** A head commits to its signer's whole chain through
+`prev`, and to the opponent's chain up to what its signer had seen through
+`seen_hash`. A player that has just acknowledged the opponent's latest record
+anchors its own head (the ACK) and so covers both chains at once. The server
+learns sequence numbers and timing, never the moves.
+
+**Why a head carries its signature.** A bare hash can be computed before it is
+signed: a player could anchor the hashes of all 20..218 possible next moves
+the moment its turn starts, think for a minute, then play one whose hash was
+anchored early and claim it was made in no time. A head is the record's own
+signed header, and the header names `seq`: anchoring two candidates for one
+`seq` is two signed headers for one number, a fork, and loses the game.
+
+**Records** are only sent where the server has to read them: in online games
+(`full`) the server times every move and needs `at`, `op` and the body; in
+offline and hybrid games heads are enough. A record sent along must hash to
+the body_hash of its head.
 
 The server checks, per request:
 
 1. Genesis valid, certificates valid and not revoked.
-2. Every record: payload belongs to this genesis, signature valid for its
-   signer, its `prev` matches the server's copy of `seq - 1` when it has one.
-3. A second payload for a `(signer, seq)` it already holds: fork, kept as
-   evidence, the signer loses.
-4. When it holds the full chain up to the heads, it runs the canonical order
-   and checks `state_hash`. A mismatch is answered with the server's own state
-   (the submitting client's engine diverged); the receipt is still issued,
-   with `state_verified = 0`.
+2. Every head: the header rebuilt from genesis, signer, seq and body_hash
+   verifies against the signer's key.
+3. A second head for a `(signer, seq)` it already holds, with another
+   body_hash: fork, kept as evidence, the signer loses.
+4. Records, when sent: they match their heads and link through `prev`. When
+   the server holds the full chain up to the heads, it runs the canonical
+   order and checks `state_hash`. A mismatch is answered with the server's own
+   state (the submitting client's engine diverged); the receipt is still
+   issued, with `state_verified = 0`.
+
+Heads below the newest one are checked when the chain is revealed (a report,
+or records in a later anchor): every anchored head must lie on the revealed
+chain. One that does not is a second signed header for its `seq`, a fork.
 
 ### Receipt
 
 ```
 "PSANCH01" | key_id u8 | genesis_hash [32]
-| white_seq u32 | white_hash [32]          highest white record the server holds
-| black_seq u32 | black_hash [32]          highest black record the server holds
+| white_seq u32 | white_id [32]            record id of the highest white head the server holds
+| black_seq u32 | black_id [32]            record id of the highest black head the server holds
 | state_hash [32] | state_verified u8      zeros / 0 when none was sent
 | server_ms u64 | anchor_no u32            per game, from 1
 | prev_receipt [32]                         SHA-256 of the previous receipt of this game
@@ -414,14 +442,16 @@ players keep their receipts; the server keeps all of them.
 
 The **existence time** `E(r)` of a record is the `server_ms` of the first
 receipt whose head for `r`'s signer has `seq >= r.seq` (the head commits to
-`r` through `prev`). It is an upper bound: `r` existed no later than `E(r)`.
+`r` through `prev`, checked once the chain is revealed). It is an upper bound:
+`r` existed no later than `E(r)`.
 Anchoring can only ever make a player's own records look *earlier* than when a
 later anchor would place them, never earlier than they really existed.
 
 ### Delivery
 
-When a player has a live session, the server pushes every record it receives
-for that game from the opponent, and its receipts, to it. So a record anchored
+When anchors carry records (online games) and a player has a live session,
+the server pushes every record it receives for that game from the opponent,
+and its receipts, to it. So a record anchored
 at `T` reached the opponent no later than `T` plus that session's latency,
 even when the direct link held it back. Withholding a move from the opponent
 while anchoring it gains nothing.
@@ -582,13 +612,14 @@ someone leaves need an arbiter: see the next section.
 With `arbiter = checkpoints` the clocks stay `peer` and the server is only a
 witness of presence. While a device reaches the server it anchors at least
 every `checkpoint_interval_ms` and right after every record it signs or
-receives. A checkpoint is a signed anchor request even when it carries no new
-record, so each one proves "this player was there at server time T". The
-server pushes every record it receives to the other player, as in Delivery.
+receives. A checkpoint is an anchor sent over the player's own authenticated
+session (or with a signature over a fresh server nonce), even when its head
+did not change, so each one proves "this player was there at server time T".
 
-**Presence** counts only a player's own checkpoints. Records of a player that
-the opponent anchors prove those records existed, but not that their signer
-could reach the arbiter: an opponent could simply leave them out.
+**Presence** counts only a player's own checkpoints. A head proves that a
+record existed, not who sent it: the opponent holds every signed record of
+this player and could submit them. And records of a player that the opponent
+anchors could just as well be left out.
 
 **Away.** At server time T, player X is away when all of these hold:
 
@@ -622,7 +653,7 @@ charge   = interval - refund(interval - think)       Lag.Compensate
 Why neither player can shift time onto the other:
 
 - A player cannot make its own move look earlier than it existed (signed
-  payloads, see Request), so it cannot shorten its own interval.
+  heads, see Request), so it cannot shorten its own interval.
 - A player cannot make the opponent's previous move look later: the opponent
   anchored it when sending it, and the server pushed it to this player then.
 - A player can make its own move look later by anchoring it late: that only
@@ -664,7 +695,7 @@ gaps. The server:
 2. Merges with what it already holds for that `genesis_hash`: the union. A
    report can only add records, so withholding never removes what the other
    player or the anchors put there.
-3. Looks for forks (one signer, one `seq`, two different payloads): the signer
+3. Looks for forks (one signer, one `seq`, two different headers): the signer
    loses.
 4. Runs the canonical order and stores the result with its state:
 
@@ -698,16 +729,15 @@ genesis
 records without signatures, per signer in seq order (seq, seen, at, op, args)
 head signatures      the last record of White and of Black, 64 bytes each
 server records       verdicts, with their signatures
-fork evidence        only in a game that ended in a fork: both records, signed
+fork evidence        only in a game that ended in a fork: both headers, signed
 last receipt         optional: server-attested time of the game
 ```
 
-This loses nothing. Every payload contains `prev`, the hash of the signer's
-previous payload, so one signature on a player's last record commits to every
-record that player made before it. A verifier rebuilds every payload from the
-genesis forward (`prev`, `seen_hash`, `ply`, `legal`) and checks only the
-heads; changing, adding or dropping any earlier record changes the hash chain
-and the head signature fails.
+This loses nothing, for the same reason one head is enough for an anchor: a
+verifier rebuilds every body and header from the genesis forward (`prev`,
+`seen_hash`, `ply`, `legal`) and checks only the two head signatures; changing,
+adding or dropping any earlier record changes the chain of record ids and a
+head signature fails.
 
 A 40-move game (80 moves, 80 ACKs, 2 ENDs, 1 verdict) is about 1 KB of
 records plus 3 signatures, against about 10 KB of signatures alone when every
@@ -739,7 +769,9 @@ anchor of a record is its delivery.
 | Claim to have seen something you had not | `seen_hash` must match the opponent's real record |
 | Resign/accept races | canonical order, identical on every device |
 | Engines disagree on legal moves | `legal` in the payload: signature fails, no silent divergence |
-| Pre-anchor every candidate move to stop your clock early | anchors carry signed payloads: two candidates are a fork |
+| Pre-anchor every candidate move to stop your clock early | a head is a signed header naming `seq`: two candidates are a fork |
+| Anchor a head that later turns out not to be on your chain | a second signed header for that `seq`: fork |
+| Submit the opponent's heads to fake its presence | presence counts only a player's own authenticated checkpoints |
 | Anchor a move but hold it back from the opponent | the server pushes it on anchoring |
 | Anchor the opponent's move late to burn its clock | the opponent anchored it on sending |
 | Server drops or reorders a receipt | `prev_receipt` chain |

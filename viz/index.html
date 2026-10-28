@@ -420,8 +420,8 @@ function buildFork() {
   step(g, 'Two different record numbers alike', 'Black signs Nf6 for White and Qe7 for the server, both with the same record number on the same history. Each copy alone verifies.');
   ack(g, 'w', nf6, arr);
   g.ev.push({ k: 'anchor', from: 'w', recs: [nf6.id], t: arr + 2 });
-  note(g, 's', 'bad', 'Server: two different signed payloads for one Black record number. That is a fork, and the two signatures are the proof.', arr + 45);
-  step(g, 'White anchors what it received', 'Clients anchor the records they receive too. Now the server holds both payloads.');
+  note(g, 's', 'bad', 'Server: two different signed heads for one Black record number. That is a fork, and the two signatures are the proof.', arr + 45);
+  step(g, 'White anchors what it received', 'Clients anchor the records they receive too. Now the server holds two different signed heads for one Black record number.');
   const W = g.recs.filter(r => r.who === 'w' && !isAck(r));
   sign(g, 's', { op: 242, seenW: W[W.length - 1].seq, seenB: nf6.seq, label: 'result 1-0', auto: { res: 1, term: 17 } }, arr + 100);
   g.ev.push({ k: 'push', to: 'w', recs: ['S1'], t: arr + 101 }, { k: 'push', to: 'b', recs: ['S1'], t: arr + 102 });
@@ -435,13 +435,13 @@ function buildPreAnchor() {
   step(g, 'Moves 1 to 5', 'A normal game up to Qh5.');
   const t0 = g.recvAt.b + 30;
   g.ev.push({ k: 'anchor', from: 'b', recs: [], label: '28 candidate hashes', t: t0 });
-  note(g, 's', 'bad', 'Server: rejected. An anchor carries signed payloads, never bare hashes: a hash can be computed before the move is chosen.', t0 + 41);
+  note(g, 's', 'bad', 'Server: rejected. An anchor carries signed heads, never bare hashes: a hash can be computed before the move is chosen.', t0 + 41);
   step(g, '28 bare hashes', 'Black hashes all 28 possible replies and anchors the hashes, to think for a minute and still claim an early time.');
   const a = sign(g, 'b', { op: 25, label: 'Nf6', ply: 6, legal: 28 }, t0 + 100);
   const b = sign(g, 'b', { op: 12, label: 'g6', ply: 6, legal: 28, altOf: a }, t0 + 101);
   g.ev.push({ k: 'anchor', from: 'b', recs: [a.id, b.id], t: t0 + 102 });
-  note(g, 's', 'bad', 'Server: two signed payloads for one Black record number. Fork.', t0 + 143);
-  step(g, 'Two signed candidates', 'So Black signs two candidates and anchors them. To pre-anchor a move it has to sign it.');
+  note(g, 's', 'bad', 'Server: two signed heads for one Black record number. Fork.', t0 + 143);
+  step(g, 'Signed candidate heads', 'So Black signs the headers of its candidates (two of 28 shown) and anchors them as heads, still without revealing a move. But a head names its seq: two signed headers for one seq are a fork.');
   const W = g.recs.filter(r => r.who === 'w' && !isAck(r));
   sign(g, 's', { op: 242, seenW: W[W.length - 1].seq, seenB: a.seq, label: 'result 1-0', auto: { res: 1, term: 17 } }, t0 + 200);
   g.ev.push({ k: 'push', to: 'w', recs: ['S1'], t: t0 + 201 }, { k: 'push', to: 'b', recs: ['S1'], t: t0 + 202 });
@@ -534,15 +534,11 @@ function deps(sc, r) {
 }
 const argBytes = r => new Uint8Array(r.args || []);
 const hashOf = (sc, r) => r ? (sc.h[r.id] ||= sha256(payload(sc, r))) : new Uint8Array(32);
-function payloadFields(sc, r) {
+// Header and body (spec "Header and body"): the signature covers the 77-byte
+// header, which commits to the body through body_hash. record id = SHA-256(header).
+function bodyFields(sc, r) {
   const prev = r.seq > 1 ? hashOf(sc, canon(sc, r.who, r.seq - 1)) : sc.genesis;
-  const f = [
-    { n: 'magic', b: ascii('PSREC001'), v: 'PSREC001' },
-    { n: 'genesis_hash', b: sc.genesis, v: short(sc.genesis) },
-    { n: 'signer', b: u8(SIGNER[r.who]), v: `${SIGNER[r.who]} (${WHO[r.who]})` },
-    { n: 'seq', b: u32(r.seq), v: r.seq, wire: true },
-    { n: 'prev', b: prev, v: short(prev) + (r.seq > 1 ? ` (${WHO[r.who]} ${r.seq - 1})` : ' (genesis)') },
-  ];
+  const f = [{ n: 'prev', b: prev, v: short(prev) + (r.seq > 1 ? ` (${WHO[r.who]} ${r.seq - 1})` : ' (genesis)') }];
   if (r.who === 's') {
     const hw = r.seenW ? hashOf(sc, canon(sc, 'w', r.seenW)) : new Uint8Array(32);
     const hb = r.seenB ? hashOf(sc, canon(sc, 'b', r.seenB)) : new Uint8Array(32);
@@ -560,9 +556,23 @@ function payloadFields(sc, r) {
   if (isMove(r)) f.push({ n: 'ply', b: u16(r.ply), v: r.ply }, { n: 'legal', b: u8(r.legal), v: r.legal });
   return f;
 }
-const payload = (sc, r) => cat(...payloadFields(sc, r).map(f => f.b));
-// Demo stand-in for the 64-byte Ed25519 signature.
-function sigOf(sc, r) { const s1 = sha256(cat(payload(sc, r), ascii('demo-sig-' + r.who))); return cat(s1, sha256(s1)); }
+const bodyOf = (sc, r) => cat(...bodyFields(sc, r).map(f => f.b));
+function headerFields(sc, r) {
+  const bh = sha256(bodyOf(sc, r));
+  return [
+    { n: 'magic', b: ascii('PSREC001'), v: 'PSREC001' },
+    { n: 'genesis_hash', b: sc.genesis, v: short(sc.genesis) },
+    { n: 'signer', b: u8(SIGNER[r.who]), v: `${SIGNER[r.who]} (${WHO[r.who]})` },
+    { n: 'seq', b: u32(r.seq), v: r.seq, wire: true },
+    { n: 'body_hash', b: bh, v: short(bh) + ' (SHA-256 of the body)' },
+  ];
+}
+const header = (sc, r) => cat(...headerFields(sc, r).map(f => f.b));
+const payload = header;
+// A head, what anchors carry: signer, seq, body_hash, signature.
+const headLen = r => 1 + varint(r.seq).length + 32 + 64;
+// Demo stand-in for the 64-byte Ed25519 signature over the header.
+function sigOf(sc, r) { const s1 = sha256(cat(header(sc, r), ascii('demo-sig-' + r.who))); return cat(s1, sha256(s1)); }
 function wireFields(sc, r) {
   const f = [{ n: 'seq', b: varint(r.seq), c: '#8B93A1' }];
   if (r.who === 's') f.push({ n: 'seen_w', b: varint(r.seenW), c: '#6E7681' }, { n: 'seen_b', b: varint(r.seenB), c: '#6E7681' });
@@ -720,8 +730,11 @@ function profileCard() {
 const FORMATS = [
   { title: 'Signature', text: 'Ed25519 (RFC 8032), 64 bytes, deterministic. Verification pinned to ZIP-215 so every device agrees on which signatures are valid.', head: ['Part', 'Bytes', 'How'], rows: [
     ['R', '32', 'nonce point, from SHA-512(key prefix | m)'], ['S', '32', 'scalar, must be canonical'], ['verify', '', 'ZIP-215: ed25519consensus (Go), noble zip215 (web), ed25519-zebra (Rust)'], ['total', '64', '']] },
-  { title: 'Signed payload', text: 'Rebuilt by every verifier from its own state. Only the fields marked "sent" travel; the rest are checked through the signature.', head: ['Field', 'Bytes', 'Sent'], rows: [
-    ['magic "PSREC001"', '8', 'no'], ['genesis_hash', '32', 'no'], ['signer (0 white, 1 black, 2 server)', '1', 'no, the link or container says it'], ['seq', '4', 'yes, varint'], ['prev (hash of own seq-1)', '32', 'no'], ['seen', '4', 'yes, varint'], ['seen_hash', '32', 'no'], ['at (signer clock, ms)', '4', 'yes, varint'], ['op', '1', 'yes'], ['args', 'n', 'yes'], ['ply (moves only)', '2', 'no'], ['legal (moves only)', '1', 'no']] },
+  { title: 'Header and body', text: 'Rebuilt by every verifier from its own state. The signature covers the 77-byte header; the header commits to the body by its hash. Only the fields marked "sent" travel.', head: ['Field', 'Bytes', 'Sent'], rows: [
+    ['header: magic "PSREC001"', '8', 'no'], ['header: genesis_hash', '32', 'no'], ['header: signer (0 white, 1 black, 2 server)', '1', 'no, the link or container says it'], ['header: seq', '4', 'yes, varint'], ['header: body_hash', '32', 'no'],
+    ['body: prev (record id of own seq-1)', '32', 'no'], ['body: seen', '4', 'yes, varint'], ['body: seen_hash (record id)', '32', 'no'], ['body: at (signer clock, ms)', '4', 'yes, varint'], ['body: op', '1', 'yes'], ['body: args', 'n', 'yes'], ['body: ply, legal (moves only)', '2 + 1', 'no']] },
+  { title: 'Anchor head', text: 'What an anchor carries: one head per player, usually only the sender\'s own. It commits to the whole game up to that record through prev and seen_hash, and reveals no moves.', head: ['Field', 'Bytes'], rows: [
+    ['signer', '1'], ['seq', '1-5, varint'], ['body_hash', '32'], ['signature (over the header)', '64'], ['total', 'about 98']] },
   { title: 'Op byte', text: 'One byte says what a record is. A move is just its move code; every record carries at, so no record needs a duration.', head: ['op', 'Record', 'Args'], rows: [
     ['0..217', 'MOVE, op = move code', ''], ['218', 'RESIGN', ''], ['219..221', 'DRAW_OFFER / ACCEPT / DECLINE', ''], ['222..224', 'TAKEBACK_OFFER / ACCEPT / DECLINE', ''], ['225', 'ABORT', ''], ['226', 'FLAGGED (my clock ran out)', ''], ['227', 'FLAG_CLAIM (as of my at)', ''], ['229', 'END', 'result, termination'], ['230', 'ACK (applied your seen at my at)', ''], ['231', 'DISPUTE', 'reason, subject seq'], ['232', 'RESUME', ''], ['233', 'CANCEL', 'reason: 1 leave, 2 opponent gone'], ['240..242', 'VERDICT_FLAG / ABANDON / RESULT (server)', 'color / result, termination, clocks']] },
   { title: 'Peer clock function', text: 'Both devices and the report checker compute the clocks the same way from the signed timestamps.', head: ['Quantity', 'Rule'], rows: [
@@ -844,7 +857,7 @@ function seqSvg(s, st) {
       const dash = ev.k === 'anchor' || ev.k === 'report' ? '6 4' : (ev.k === 'receipt' || ev.k === 'push' || ping) ? '2 4' : '';
       let text;
       if (ev.k === 'gen' || ping) text = ev.label;
-      else if (ev.k === 'anchor') text = ev.label || 'anchor ' + lbl(ev.recs);
+      else if (ev.k === 'anchor') text = ev.label || (s.mode === 'anchored' ? 'anchor ' : 'anchor head ') + lbl(ev.recs);
       else if (ev.k === 'report') text = `report, ${ev.recs.length} records`;
       else if (ev.k === 'receipt') text = 'receipt ' + (row.receipt || '');
       else if (ev.k === 'push') text = 'push ' + lbl(ev.recs);
@@ -938,8 +951,8 @@ function inspector(s, st, sel, clk) {
   const r = s.byId[sel.id];
   if (!r) return '';
   const known = st.signed.has(r.id);
-  const pf = payloadFields(s, r), wf = wireFields(s, r);
-  const pl = pf.reduce((n, f) => n + f.b.length, 0), wl = wf.reduce((n, f) => n + f.b.length, 0);
+  const hf = headerFields(s, r), bf = bodyFields(s, r), wf = wireFields(s, r);
+  const bl = bf.reduce((n, f) => n + f.b.length, 0), wl = wf.reduce((n, f) => n + f.b.length, 0);
   const per = clk.per[r.id] || {};
   const ord = order(s, st.signed).findIndex(x => x.id === r.id);
   const facts = [['Status', known ? 'signed' : 'not signed yet at this step'], ['Canonical order', ord >= 0 ? ord + 1 : 'n/a']];
@@ -960,7 +973,7 @@ function inspector(s, st, sel, clk) {
   }
   if (isAck(r)) { const t = canon(s, opp(r.who), r.seen); const tp = t && (clk.per[t.id] || {}).transit; if (tp) facts.push(['Sample', `u(${t.label}) = at(this ACK) - at(${t.label}) = ${fmtMs(tp.u)}`]); }
   if (per.claim) facts.push(['Claim', per.claim.elapsed != null ? `${fmtMs(per.claim.elapsed)} into the opponent's turn (converted with theta) vs remaining ${fmtMs(per.claim.rem)} + J ${fmtMs(per.claim.J)}: ${per.claim.valid ? 'valid' : 'not yet'}` : 'not applicable here']);
-  facts.push(['Size', `${wl} bytes on the wire, ${pl} bytes signed payload`], ['Record hash', short(hashOf(s, r))]);
+  facts.push(['Size', `${wl} bytes on the wire; 77-byte header over a ${bl}-byte body`], ['Head (for anchors)', `${headLen(r)} bytes: signer, seq, body_hash, signature; covers the whole game up to here`], ['Record id', short(hashOf(s, r))]);
   const bar = wf.map(f => `<div class="seg" style="flex:${Math.max(f.b.length, 2)};background:${f.c}">${f.n}<small>${f.b.length} B</small></div>`).join('');
   const hx = wf.map(f => `<span style="color:${f.c}">${hex(f.b)}</span>`).join(' ');
   return `<h2>${WHO[r.who]} record ${r.seq}: ${esc(r.label)}<span class="chip">${opName(r.op)}${isMove(r) ? ' code ' + r.op : ''}</span></h2>
@@ -968,8 +981,10 @@ function inspector(s, st, sel, clk) {
     <dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
     <div class="bar">${bar}</div>
     <div class="hex">${hx}</div>
-    <h2 style="margin-top:14px">Signed payload</h2>
-    <table><tr><th>Field</th><th>B</th><th>Value</th><th>Sent</th></tr>${pf.map(f => `<tr><td>${f.n}</td><td>${f.b.length}</td><td class="mono">${esc(f.v)}</td><td class="${f.wire ? 'yes' : 'no'}">${f.wire ? 'yes' : 'no'}</td></tr>`).join('')}</table>
+    <h2 style="margin-top:14px">Header (signed)</h2>
+    <table><tr><th>Field</th><th>B</th><th>Value</th><th>Sent</th></tr>${hf.map(f => `<tr><td>${f.n}</td><td>${f.b.length}</td><td class="mono">${esc(f.v)}</td><td class="${f.wire ? 'yes' : 'no'}">${f.wire ? 'yes' : 'no'}</td></tr>`).join('')}</table>
+    <h2 style="margin-top:14px">Body (hashed into the header)</h2>
+    <table><tr><th>Field</th><th>B</th><th>Value</th><th>Sent</th></tr>${bf.map(f => `<tr><td>${f.n}</td><td>${f.b.length}</td><td class="mono">${esc(f.v)}</td><td class="${f.wire ? 'yes' : 'no'}">${f.wire ? 'yes' : 'no'}</td></tr>`).join('')}</table>
     <p class="muted" style="margin-top:8px;font-size:12px">Hashes are real SHA-256 over these bytes${SHA_OK ? '' : ' (self-test failed)'}; the 64-byte signature is demo bytes, not real Ed25519.</p>`;
 }
 
@@ -994,7 +1009,7 @@ function storedCard() {
   const full = [...players, ...server].reduce((n, r) => n + wireLen(r), 0);
   const bare = players.reduce((n, r) => n + wireLen(r) - 64, 0);
   const compact = bare + 2 * 64 + server.reduce((n, r) => n + wireLen(r), 0);
-  return `<div class="card"><h2>Stored game</h2><p class="lead">Once a game is final only the last record of each player keeps its signature: it commits to every earlier record through prev. A verifier rebuilds all payloads and checks the heads.</p>
+  return `<div class="card"><h2>Stored game</h2><p class="lead">Once a game is final only the last record of each player keeps its signature: it commits to every earlier record through prev. A verifier rebuilds every header and body and checks the two head signatures.</p>
     <table style="margin-top:8px"><tr><th>Scholar's mate, anchored</th><th>Bytes</th></tr>
       <tr><td>every record signed (${players.length + server.length} records, ACKs included)</td><td>${full}</td></tr>
       <tr><td>compact: records without signatures</td><td>${bare}</td></tr>
