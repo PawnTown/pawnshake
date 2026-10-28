@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pawnshake protocol</title>
+<!--
+  Visualizer for spec/PAWNSHAKE.md. Self-contained, open it
+  in a browser. Everything is data driven: scenarios are the build* functions
+  below, formats and decisions are the FORMATS / DECISIONS arrays. Bytes are
+  encoded like the spec says and hashed with a real SHA-256; signatures are
+  demo bytes (SHA-256 based, 64 bytes like Ed25519), not a real signature.
+  The peer clock function and the canonical order are real implementations of
+  the spec. Notes and picked options are kept in localStorage and exported with "Copy notes".
+-->
+<style>
+:root {
+  --c-bg: var(--background, #08090A);
+  --c-panel: var(--card, #16181B);
+  --c-line: var(--border, rgba(255,255,255,.08));
+  --c-text: var(--foreground, #E1E3E6);
+  --c-muted: var(--muted-foreground, #9AA0A6);
+  --c-green: #4CB782;
+  --c-red: #EB5757;
+  --c-gold: #D4A84B;
+  --c-w: #E1E3E6;
+  --c-b: #8A919C;
+  --r: 14px;
+  --mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+html { background: var(--c-bg); color: var(--c-text); font-family: var(--font-sans, -apple-system, Inter, system-ui, sans-serif); }
+body { margin: 0; }
+.page { max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; font-size: 14px; }
+.standalone .page { padding: 24px; }
+h1 { font-size: 20px; margin: 0; font-weight: 600; }
+h2 { font-size: 15px; margin: 0 0 6px; font-weight: 600; }
+p { margin: 0; line-height: 1.5; }
+.lead { font-size: 13.5px; color: var(--c-text); }
+.muted { color: var(--c-muted); }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill { border: 1px solid var(--c-line); background: transparent; color: var(--c-muted); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.pill:hover { color: var(--c-text); }
+.pill.on { background: var(--c-text); color: var(--c-bg); border-color: var(--c-text); }
+.btn { border: 1px solid var(--c-line); background: transparent; color: var(--c-text); border-radius: 10px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.btn.primary { background: var(--c-text); color: var(--c-bg); border-color: var(--c-text); font-weight: 600; }
+.btn:disabled { opacity: .35; cursor: default; }
+.card { background: var(--c-panel); border: 1px solid var(--c-line); border-radius: var(--r); padding: 16px; min-width: 0; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 1080px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.step-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.step-ctl { display: flex; gap: 8px; align-items: center; }
+.step-ctl input[type=range] { width: 160px; accent-color: var(--c-text); }
+.stepno { font-size: 12px; color: var(--c-muted); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: inherit; }
+.scroll-x { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+td, th { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid var(--c-line); vertical-align: top; }
+th { color: var(--c-muted); font-weight: 500; }
+td.mono, .mono { font-family: var(--mono); font-size: 12px; }
+.yes { color: var(--c-green); }
+.no { color: var(--c-muted); }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12.5px; margin: 10px 0; }
+.facts dt { color: var(--c-muted); }
+.facts dd { margin: 0; }
+.bar { display: flex; height: 34px; border-radius: 8px; overflow: hidden; margin: 10px 0 6px; }
+.seg { display: flex; flex-direction: column; justify-content: center; padding: 0 6px; font-size: 11px; line-height: 1.15; overflow: hidden; white-space: nowrap; color: #0b0c0e; min-width: 26px; }
+.seg small { opacity: .7; }
+.hex { font-family: var(--mono); font-size: 11.5px; line-height: 1.6; word-break: break-all; }
+.chip { display: inline-block; border: 1px solid var(--c-line); border-radius: 999px; padding: 2px 9px; font-size: 12px; color: var(--c-muted); margin-left: 6px; }
+.clock { display: grid; grid-template-columns: 70px 1fr max-content; gap: 6px 10px; font-size: 13px; align-items: baseline; }
+.clock .t { font-family: var(--mono); font-size: 18px; }
+.tomove { color: var(--c-gold); font-size: 12px; }
+textarea { width: 100%; box-sizing: border-box; min-height: 70px; background: transparent; color: var(--c-text); border: 1px solid var(--c-line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; resize: vertical; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--c-muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 22px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--c-text); color: var(--c-bg); padding: 8px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.on { opacity: 1; }
+.clickable { cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="page" id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+// ------------------------------------------------------------ bytes, sha256
+const enc = new TextEncoder();
+const PRIMES = []; for (let n = 2; PRIMES.length < 64; n++) if (PRIMES.every(p => n % p)) PRIMES.push(n);
+const K = PRIMES.map(p => Math.floor((Math.cbrt(p) % 1) * 4294967296) >>> 0);
+const H0 = PRIMES.slice(0, 8).map(p => Math.floor((Math.sqrt(p) % 1) * 4294967296) >>> 0);
+const ror = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+function sha256(msg) {
+  const l = msg.length, buf = new Uint8Array(((l + 9 + 63) >> 6) << 6);
+  buf.set(msg); buf[l] = 0x80;
+  const dv = new DataView(buf.buffer), bits = l * 8;
+  dv.setUint32(buf.length - 4, bits >>> 0); dv.setUint32(buf.length - 8, Math.floor(bits / 4294967296));
+  const h = H0.slice(), w = new Uint32Array(64);
+  for (let i = 0; i < buf.length; i += 64) {
+    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4);
+    for (let t = 16; t < 64; t++) {
+      const s0 = ror(w[t-15], 7) ^ ror(w[t-15], 18) ^ (w[t-15] >>> 3);
+      const s1 = ror(w[t-2], 17) ^ ror(w[t-2], 19) ^ (w[t-2] >>> 10);
+      w[t] = (w[t-16] + s0 + w[t-7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, k] = h;
+    for (let t = 0; t < 64; t++) {
+      const t1 = (k + (ror(e, 6) ^ ror(e, 11) ^ ror(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + w[t]) >>> 0;
+      const t2 = ((ror(a, 2) ^ ror(a, 13) ^ ror(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      k = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, d, e, f, g, k].forEach((x, j) => { h[j] = (h[j] + x) >>> 0; });
+  }
+  const out = new Uint8Array(32), odv = new DataView(out.buffer);
+  h.forEach((x, j) => odv.setUint32(j * 4, x));
+  return out;
+}
+const hex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+const short = b => hex(b).slice(0, 8) + '..';
+const ascii = s => enc.encode(s);
+const cat = (...parts) => { const n = parts.reduce((s, p) => s + p.length, 0), o = new Uint8Array(n); let i = 0; for (const p of parts) { o.set(p, i); i += p.length; } return o; };
+const u8 = n => new Uint8Array([n & 255]);
+const u16 = n => new Uint8Array([(n >> 8) & 255, n & 255]);
+const u32 = n => new Uint8Array([(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]);
+function varint(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128); if (n > 0) b |= 128; o.push(b); } while (n > 0); return new Uint8Array(o); }
+const SHA_OK = hex(sha256(ascii('abc'))) === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+if (!SHA_OK) console.error('sha256 self-test failed');
+
+// ------------------------------------------------------------ protocol constants
+const NET = { direct: 25, server: 40, ble: 18 };
+const JIT = [0, 3, 1, 6, 2, 4, 1, 5];
+const WHO = { w: 'White', b: 'Black', s: 'Server' };
+const SIGNER = { w: 0, b: 1, s: 2 };
+const OPS = { 233: 'CANCEL', 218: 'RESIGN', 219: 'DRAW_OFFER', 220: 'DRAW_ACCEPT', 221: 'DRAW_DECLINE', 222: 'TAKEBACK_OFFER', 223: 'TAKEBACK_ACCEPT', 224: 'TAKEBACK_DECLINE', 225: 'ABORT', 226: 'FLAGGED', 227: 'FLAG_CLAIM', 229: 'END', 230: 'ACK', 231: 'DISPUTE', 232: 'RESUME', 240: 'VERDICT_FLAG', 241: 'VERDICT_ABANDON', 242: 'VERDICT_RESULT' };
+const DISPUTE_REASON = { 1: 'late ACK', 2: 'early send', 3: 'future', 4: 'clock rate', 5: 'asymmetry' };
+const opName = op => op <= 217 ? 'MOVE' : (OPS[op] || 'reserved');
+const isMove = r => r.who !== 's' && r.op <= 217;
+const isAck = r => r.op === 230;
+const fmtT = ms => ms >= 3600000 ? '+' + (ms / 3600000).toFixed(1) + ' h' : (ms / 1000).toFixed(2) + ' s';
+const fmtMs = ms => (ms < 0 ? '-' : '') + (Math.abs(ms) >= 1000 ? (Math.abs(ms) / 1000).toFixed(3) + ' s' : Math.round(Math.abs(ms)) + ' ms');
+const fmtClock = ms => { ms = Math.max(0, ms); const m = Math.floor(ms / 60000), s = (ms % 60000) / 1000; return m + ':' + s.toFixed(1).padStart(4, '0'); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const opp = w => (w === 'w' ? 'b' : 'w');
+// The rules profile "whitepawn/1" (PAWNSHAKE.md, "Rules profile"): concrete
+// values for one time control. Everything policy-like below reads these.
+function whitepawnProfile(initial, inc) {
+  const est = initial + 40 * inc, k = est < 180000 ? 0 : est < 480000 ? 1 : est < 1500000 ? 2 : 3;
+  return {
+    name: 'whitepawn/1', j_min_ms: 30, j_rtt_mult: 2, sample_window: 16,
+    pause_budget_ms: [2000, 5000, 10000, 20000][k], ping_interval_ms: 250, rate_tolerance_ppm: 1000,
+    checkpoint_interval_ms: 10000, away_after_ms: [15000, 30000, 60000, 120000][k],
+    leave_with_arbiter: 1, leave_offline: 0, free_first_moves: 1, takebacks: 1, report_wait_days: 7,
+  };
+}
+const PROFILE_KEYS = ['j_min_ms', 'j_rtt_mult', 'sample_window', 'pause_budget_ms', 'ping_interval_ms', 'rate_tolerance_ppm', 'checkpoint_interval_ms', 'away_after_ms', 'leave_with_arbiter', 'leave_offline', 'free_first_moves', 'takebacks', 'report_wait_days'];
+const LEAVE = ['cancel', 'loss', 'draw'];
+
+// ------------------------------------------------------------ scenario builder
+// Times in events are "true" time (White's clock). A record's `at` is its
+// signer's own clock: Black's device runs `offB` ms ahead, and a lying signer
+// can shift its stamp (`lie`). The chain never sees true time, only `at`.
+// Move codes and legal counts come from the Go reference (go/movecode).
+const MV = {
+  e4: [13, 'e4', 1, 20, 900], e5: [8, 'e5', 2, 20, 1200], Bc4: [9, 'Bc4', 3, 29, 2100], Nc6: [15, 'Nc6', 4, 29, 1800],
+  Qh5: [5, 'Qh5', 5, 33, 1500], Nf6: [25, 'Nf6', 6, 28, 3400], Qxf7: [41, 'Qxf7#', 7, 43, 700],
+  Qe7: [18, 'Qe7', 6, 28, 3400], g6: [12, 'g6', 6, 28, 3400],
+};
+function newGame(o) {
+  return { mode: o.mode, checkpoints: !!o.checkpoints, recs: [], steps: [], ev: [], cnt: { w: 0, b: 0, s: 0 }, seenBy: { w: 0, b: 0 }, off: { w: 0, b: o.offB ?? 73214, s: 0 }, lat: o.lat ?? NET.direct, recvAt: { w: 0, b: 0 }, j: 0, ping: 40 };
+}
+const latOf = g => g.lat + JIT[(g.j++) % JIT.length];
+function sign(g, who, f, t, lie = 0) {
+  const alt = f.altOf;
+  const seq = alt ? alt.seq : ++g.cnt[who];
+  const r = { who, seq, t, at: Math.round(t + g.off[who] - lie), ...f };
+  delete r.altOf;
+  r.id = f.id || (who === 's' ? 'S' : who.toUpperCase()) + seq + (alt ? 'x' : '');
+  if (alt) r.alt = true;
+  if (who !== 's' && r.seen === undefined) r.seen = alt ? alt.seen : g.seenBy[who];
+  if (r.op <= 217 && r.label && r.label.endsWith('#')) r.term = true;
+  g.recs.push(r);
+  g.ev.push({ k: who === 's' ? 'verdict' : 'sign', who, rec: r.id, t });
+  return r;
+}
+const apply = (g, who, r) => { g.seenBy[who] = Math.max(g.seenBy[who], r.seq); };
+function deliver(g, r, o = {}) {
+  const t = r.t + (o.hold || 0), dt = o.dt ?? latOf(g);
+  g.ev.push({ k: 'direct', from: r.who, to: opp(r.who), recs: [r.id], t, dt, label: o.label });
+  return t + dt;
+}
+// The receiver applies r and answers at once with an ACK stamped at its receipt.
+function ack(g, who, r, tArr, o = {}) {
+  apply(g, who, r);
+  const k = sign(g, who, { op: 230, label: 'ACK ' + (r.label || '') }, tArr + (o.delay || 0));
+  deliver(g, k, { dt: o.dt });
+  apply(g, r.who, k);
+  return k;
+}
+function send(g, who, f, t, o = {}) {
+  const r = sign(g, who, f, t, o.lie);
+  if ((g.mode === 'anchored' || g.checkpoints) && !o.noAnchor) {
+    g.ev.push({ k: 'anchor', from: who, recs: [r.id], t });
+    if (o.receipt) g.ev.push({ k: 'receipt', to: who, t: t + NET.server });
+    if (o.push) g.ev.push({ k: 'push', to: opp(who), recs: [r.id], t: t + NET.server + 1 });
+  }
+  if (o.noDeliver) return r;
+  const arr = deliver(g, r, o);
+  g.recvAt[opp(who)] = arr;
+  if (!o.noAck) ack(g, opp(who), r, arr, { delay: o.ackDelay });
+  return r;
+}
+function move(g, who, m, o = {}) {
+  const t = o.t ?? (g.recvAt[who] + (o.think ?? m[4]));
+  return send(g, who, { op: m[0], label: o.recLabel || m[1], ply: m[2], legal: m[3] }, t, o);
+}
+const step = (g, title, text) => { g.steps.push({ title, text, ev: g.ev }); g.ev = []; };
+const note = (g, who, tone, text, t) => g.ev.push({ k: 'note', who, tone, text, t });
+const ping = (g, from, t, label) => { g.ev.push({ k: 'ping', from, to: opp(from), t, label }); };
+const genesis = (g, anchor, lat) => {
+  g.ev.push({ k: 'gen', from: 'w', to: 'b', label: 'CHALLENGE', t: 0 }, { k: 'gen', from: 'b', to: 'w', label: 'ACCEPT', t: lat + 5 }, { k: 'gen', from: 'w', to: 'b', label: 'START', t: 2 * lat + 10 });
+  if (anchor) g.ev.push({ k: 'anchor', from: 'w', recs: [], label: 'anchor genesis', t: 2 * lat + 11 }, { k: 'receipt', to: 'w', t: 2 * lat + 11 + NET.server });
+};
+const finish = (g, meta) => {
+  const profile = whitepawnProfile(meta.initial, meta.inc);
+  return { arbiter: meta.mode === 'anchored' ? 'full' : 'none', ...meta, records: g.recs, steps: g.steps, profile, budget: profile.pause_budget_ms };
+};
+const checkpoint = (g, who, t) => { g.ev.push({ k: 'anchor', from: who, recs: [], label: 'checkpoint', t }); };
+const dispute = (g, who, reason, subject, t) => send(g, who, { op: 231, args: [reason, ...varint(subject)], label: 'DISPUTE ' + DISPUTE_REASON[reason] }, t);
+
+// ------------------------------------------------------------ offline (peer) scenarios
+function buildPeerHonest() {
+  const g = newGame({ mode: 'peer', lat: NET.ble });
+  genesis(g, false, NET.ble);
+  step(g, 'Genesis over Bluetooth', "No internet. Certificates from the last time online prove who plays. Each device starts its own clock at 0 when it handles START. Black's device runs 73.2 s ahead of White's: the chain measures that and cancels it.");
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5);
+  step(g, 'Moves and ACKs', "Every record carries at, its signer's own clock. The receiver answers at once with an ACK stamped with its own receipt time. Click e5: its think time is at(e5) minus at(Black's ACK of e4), both on Black's clock.");
+  move(g, 'w', MV.Bc4); move(g, 'b', MV.Nc6);
+  step(g, 'The link estimate', "Each ACK is a transit sample across two clocks. The smallest sample per direction gives the round trip, Black's clock offset theta and the allowance J. Click an ACK to see its sample.");
+  move(g, 'w', MV.Qh5); move(g, 'b', MV.Nf6);
+  step(g, 'Clocks agree', 'Both devices run the same clock function over the same signed records, so both show the same clocks without negotiating. Transit inside J is charged to nobody.');
+  move(g, 'w', MV.Qxf7);
+  const te = g.recvAt.b + 400;
+  send(g, 'b', { op: 229, args: [1, 1], label: 'END 1-0' }, te);
+  send(g, 'w', { op: 229, args: [1, 1], label: 'END 1-0' }, te + 200);
+  step(g, 'Mate and sign-off', 'Qxf7# ends the game at the move. Both devices compute the same mate and sign END. Still offline.');
+  const all = g.recs.filter(r => r.who !== 's').map(r => r.id);
+  g.ev.push({ k: 'report', from: 'w', recs: all, t: 3 * 3600000 });
+  note(g, 's', 'good', 'Server: checkmate, provable from the chain; clocks recomputed from the timestamps, no disputes. State final.', 3 * 3600000 + 50);
+  g.ev.push({ k: 'report', from: 'b', recs: all, t: 5 * 3600000 });
+  note(g, 's', 'good', "Server: Black's upload adds nothing new. Idempotent on the genesis hash.", 5 * 3600000 + 50);
+  step(g, 'Reports, hours later', 'Both phones upload when they are back online. The server verifies the signatures, merges the uploads and recomputes the same clocks from the same timestamps.');
+  return finish(g, { id: 'peer', group: 'Offline', name: 'Honest game', mode: 'peer', initial: 180000, inc: 0, blurb: 'Two phones at one table over Bluetooth, 3+0.' });
+}
+
+function buildPeerEarly() {
+  const g = newGame({ mode: 'peer', lat: NET.ble });
+  genesis(g, false, NET.ble);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4); move(g, 'b', MV.Nc6);
+  step(g, 'Moves 1 to 4', 'A normal game up to Nc6.');
+  const tTrue = g.recvAt.w + 4000;
+  ping(g, 'w', tTrue - 1000, `ping 41, stamped ${fmtT(tTrue - 1000)}`);
+  ping(g, 'w', tTrue - 750, `ping 42, stamped ${fmtT(tTrue - 750)}`);
+  const q = move(g, 'w', MV.Qh5, { t: tTrue, lie: 1500 });
+  step(g, 'Qh5 stamped 1.5 s early', "White thinks 4.0 s but stamps Qh5 1.5 s before it really signed, to save clock. Its device kept pinging meanwhile. The chain alone sees only 1.5 s of extra transit, which the pause budget would forgive.");
+  note(g, 'b', 'bad', `Black: ping 42 was stamped ${fmtT(tTrue - 750)} and arrived before Qh5, which is stamped ${fmtT(q.at)}. On an ordered link that is impossible: early send.`, tTrue + 30);
+  dispute(g, 'b', 2, q.seq, tTrue + 60);
+  step(g, 'Black catches it live', 'The early-send check compares the stamp with the pings White itself sent. Black signs DISPUTE and stops.');
+  note(g, 's', 'bad', 'Result: disputed, no result, unrated. The dispute is counted on both accounts with the engine evaluation at that moment.', tTrue + 200);
+  step(g, 'Disputed', "White gained nothing: the game has no result. To get away with it, White would have had to stop pinging, which is an outage and draws on the shared pause budget instead.");
+  return finish(g, { id: 'peer-early', group: 'Offline', name: 'Early stamp', mode: 'peer', initial: 180000, inc: 0, blurb: 'White dates a move earlier than it sent it.' });
+}
+
+function buildPeerLateAck() {
+  const g = newGame({ mode: 'peer', lat: NET.ble });
+  genesis(g, false, NET.ble);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4); move(g, 'b', MV.Nc6);
+  step(g, 'Moves 1 to 4', 'A normal game up to Nc6.');
+  const q = move(g, 'w', MV.Qh5, { noAck: true });
+  const arr = g.recvAt.b;
+  ping(g, 'w', q.t + 60, 'ping 52');
+  g.ev.push({ k: 'pong', from: 'b', to: 'w', t: q.t + 60 + NET.ble + 2, label: 'pong 52' });
+  step(g, 'Qh5 arrives, Black stalls the ACK', "Black receives Qh5 but holds its ACK back, to start its own clock late. Its device still answers pings: White's ping 52, sent after Qh5, is echoed at once.");
+  const k = ack(g, 'b', q, arr, { delay: 2000 });
+  note(g, 'w', 'bad', `White: pong 52 proves Qh5 had arrived by ${fmtT(q.t + 60 + 2 * NET.ble + 2)}, the link is ordered. Black's ACK claims receipt 2 s later: late ACK.`, k.t + NET.ble + 5);
+  dispute(g, 'w', 1, k.seq, k.t + NET.ble + 30);
+  step(g, 'White catches it live', 'The late-ACK check: a PONG for a ping sent after my record proves receipt. White signs DISPUTE and stops. Without pings Black could only pretend an outage, which the shared pause budget caps.');
+  return finish(g, { id: 'peer-late', group: 'Offline', name: 'Late ACK', mode: 'peer', initial: 180000, inc: 0, blurb: 'Black acknowledges a move later than it received it.' });
+}
+
+function buildPeerOutage() {
+  const g = newGame({ mode: 'peer', lat: NET.ble });
+  genesis(g, false, NET.ble);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4); move(g, 'b', MV.Nc6);
+  step(g, 'Moves 1 to 4', 'A normal 3+0 game up to Nc6. Blitz: the pause budget for the whole game is 5 s.');
+  const q = move(g, 'w', MV.Qh5, { dt: 3200 });
+  note(g, 'b', 'good', 'Black: no pings for 3 s, then Qh5. The excess transit is paused time, taken from the shared budget.', g.recvAt.b + 5);
+  step(g, 'A 3 s outage', "Bluetooth drops while Qh5 is on its way. Nobody can tell whose fault it was, so nobody is charged: click Qh5 to see its excess and the budget left.");
+  move(g, 'b', MV.Nf6, { dt: 6000 });
+  note(g, 'w', 'bad', 'White: the second outage is longer than the budget left. The game is canceled, no result, unless both sign RESUME.', g.recvAt.w + 5);
+  step(g, 'A second, longer outage', 'This one exceeds the budget. Charging either side would let the other fake outages to burn its clock, so the game stops instead.');
+  const t = g.recvAt.w + 3000;
+  send(g, 'w', { op: 232, label: 'RESUME' }, t);
+  send(g, 'b', { op: 232, label: 'RESUME' }, t + 1200);
+  move(g, 'w', MV.Qxf7, { t: t + 2500 });
+  step(g, 'Both sign RESUME', 'Both players agree to go on: the outage counts as paused time. Qxf7# then ends the game normally. A player who is losing can refuse to resume; that is the offline escape hatch, counted per account.');
+  return finish(g, { id: 'peer-outage', group: 'Offline', name: 'Outage', mode: 'peer', initial: 180000, inc: 0, blurb: 'Bluetooth drops twice while moves are in transit.' });
+}
+
+function buildPeerFlag() {
+  const g = newGame({ mode: 'peer', lat: NET.ble });
+  genesis(g, false, NET.ble);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4, { think: 2000 }); move(g, 'b', MV.Nc6, { think: 9000 });
+  step(g, '15 seconds each', 'Black spends 9 s on Nc6 and has 6.0 s left.');
+  move(g, 'w', MV.Qh5, { think: 1500 });
+  step(g, 'Qh5, then silence', "Black's turn starts at its ACK of Qh5, on Black's own clock. Black does not move; its device keeps pinging, so it is no outage.");
+  const tc = g.recvAt.b + 6000 + 200;
+  const c = send(g, 'w', { op: 227, label: 'FLAG_CLAIM' }, tc);
+  step(g, 'White claims the flag', "White signs FLAG_CLAIM. Converted to Black's clock with theta, its at lies more than Black's remaining time plus J after Black's turn started: valid. Click it to see the numbers.");
+  const late = move(g, 'b', MV.Nf6, { t: tc + 900, recLabel: 'Nf6 (late)' });
+  late.void = 'After a valid FLAG_CLAIM in the canonical order: the game is over.';
+  send(g, 'w', { op: 229, args: [1, 3], label: 'END 1-0' }, tc + 1400);
+  step(g, 'A late move', "Black plays Nf6 after it had applied the claim: void. A claim stamped in the future would have failed Black's live check instead.");
+  return finish(g, { id: 'peer-flag', group: 'Offline', name: 'Flag', mode: 'peer', initial: 15000, inc: 0, blurb: '15 seconds per side, Black runs out.' });
+}
+
+
+function buildPeerHopOff() {
+  const g = newGame({ mode: 'peer', lat: NET.ble });
+  genesis(g, false, NET.ble);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4); move(g, 'b', MV.Nc6);
+  step(g, 'Moves 1 to 4', 'A normal 3+0 offline game up to Nc6. Profile whitepawn/1: away after 30 s in blitz, and leaving an offline game cancels it.');
+  const q = move(g, 'w', MV.Qh5, { noDeliver: true });
+  g.ev.push({ k: 'direct', from: 'w', to: 'b', recs: [q.id], t: q.t, dt: NET.ble, label: 'Qh5, never acknowledged' });
+  note(g, 'w', 'bad', 'White: no ACK, no pings. Black closed the app and has no internet.', q.t + 1000);
+  step(g, 'Black hops off', "Black's phone goes quiet right as Qh5 is sent. Without an arbiter nobody can prove who left, so leaving neither wins nor loses an offline game.");
+  const tc = q.t + 30000;
+  send(g, 'w', { op: 233, args: [2], label: 'CANCEL opponent gone' }, tc, { noAck: true, noDeliver: true });
+  step(g, 'White cancels after 30 s', "The game waited on Black for away_after_ms, so White's device signs CANCEL with reason 2 (opponent gone): canceled, no result, unrated.");
+  const mine = g.recs.filter(r => r.who !== 's').map(r => r.id);
+  g.ev.push({ k: 'report', from: 'w', recs: mine, t: 2 * 3600000 });
+  note(g, 's', 'good', "Server: verified, saved to both players' collections as canceled: PGN result *, unrated. Black's own upload later merges into it.", 2 * 3600000 + 50);
+  step(g, 'Still uploadable', 'A canceled game is still a game: one upload is enough to save it for both players, the moves are kept, nothing is rated.');
+  return finish(g, { id: 'peer-hop', group: 'Offline', name: 'Opponent hops off', mode: 'peer', initial: 180000, inc: 0, blurb: 'Black goes completely offline in the middle of an offline game.' });
+}
+
+function buildHybridAway() {
+  const g = newGame({ mode: 'peer', lat: NET.direct, checkpoints: true });
+  genesis(g, true, NET.direct);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4); move(g, 'b', MV.Nc6);
+  step(g, 'Moves 1 to 4 with checkpoints', 'A hybrid 3+0 game: moves go peer to peer and the clocks are peer clocks, but each device also checkpoints with the server after every record and at least every 10 s. A checkpoint proves its player was there.');
+  const q = move(g, 'w', MV.Qh5);
+  checkpoint(g, 'b', g.recvAt.b + 2);
+  step(g, 'White plays Qh5', "Both players are present: White's checkpoint carries Qh5, Black checkpoints on receipt.");
+  const tGone = q.t + 1500;
+  note(g, 'w', 'bad', 'White closes the app: no more records, no checkpoints, no pings.', tGone);
+  const nf6 = move(g, 'b', MV.Nf6, { noDeliver: true });
+  g.ev.push({ k: 'direct', from: 'b', to: 'w', recs: [nf6.id], t: nf6.t, dt: NET.direct, label: 'Nf6, never acknowledged' });
+  checkpoint(g, 'b', nf6.t + 10000); checkpoint(g, 'b', nf6.t + 20000);
+  step(g, 'White goes away', "Black plays Nf6 and keeps checkpointing. The game now waits on White (an unacknowledged record, and White to move), and White's last own checkpoint keeps getting older.");
+  const lastW = q.t + NET.server, tv = lastW + 30000;
+  checkpoint(g, 'b', tv - 3000);
+  sign(g, 's', { op: 241, args: [1], seenW: q.seq, seenB: nf6.seq, label: 'White went away' }, tv);
+  sign(g, 's', { op: 242, seenW: q.seq, seenB: nf6.seq, label: 'result 0-1', auto: { res: 2, term: 12 } }, tv + 1);
+  g.ev.push({ k: 'push', to: 'b', recs: ['S1', 'S2'], t: tv + 2 });
+  send(g, 'b', { op: 229, args: [2, 12], label: 'END 0-1' }, tv + 300, { noAck: true, noDeliver: true });
+  step(g, 'The arbiter decides', "30 s after White's last checkpoint, with the game waiting on White and Black present the whole time, the server signs VERDICT_ABANDON: White went away and loses (profile: leave_with_arbiter = loss).");
+  note(g, 's', 'good', 'Server: when White reconnects it gets the verdict. Anything White signed after it is void. Had Black lost the server as well, nobody would be present and the offline rule would cancel the game instead.', tv + 600000);
+  step(g, 'White comes back', "White's app syncs, sees 0-1 and signs END. Leaving out White's records from Black's checkpoints could not have framed White: presence counts only a player's own checkpoints.");
+  return finish(g, { id: 'hybrid-away', group: 'Hybrid', name: 'Player goes away', mode: 'peer', arbiter: 'checkpoints', initial: 180000, inc: 0, blurb: 'Hybrid game: White disappears while the game waits on it.' });
+}
+
+// ------------------------------------------------------------ online (anchored) scenarios
+function buildAnchored() {
+  const g = newGame({ mode: 'anchored', lat: NET.direct });
+  genesis(g, true, NET.direct);
+  step(g, 'Genesis', 'Challenge, accept and start travel peer to peer and give both devices the same genesis hash. White anchors it, so the server knows the players, their certificates and the clock mode.');
+  const full = { receipt: true, push: true };
+  const texts = [
+    "White signs e4 (move code 13 of 20) and sends it to Black and to the server at once. Black ACKs it; ACKs are never anchored. The server's push arrives later and is dropped as a duplicate.",
+    'Black answers e5. Its seen field commits to the newest White record it had applied. First moves cost no clock.',
+    'From ply 3 the clock runs. The server times Bc4 as E(Bc4) minus E(e5), the moments both first appeared in an anchor, and refunds lag from the quota using the think time from at and the ACK.',
+    "The chains interlock through seen: nobody can rewrite a move the other side already answered.",
+    'Click any record or arrow to see its bytes: 70 bytes on the wire, 64 of them signature.',
+    'The payload also binds the number of legal moves (28 here): two engines that disagree fail the signature instead of playing different moves.',
+    'Checkmate, provable from the chain alone.',
+  ];
+  ['e4', 'e5', 'Bc4', 'Nc6', 'Qh5', 'Nf6', 'Qxf7'].forEach((m, i) => {
+    const who = i % 2 ? 'b' : 'w';
+    move(g, who, MV[m], i === 0 ? { t: 1000, ...full } : full);
+    step(g, `${WHO[who]} plays ${MV[m][1]}`, texts[i]);
+  });
+  const W = g.recs.filter(r => r.who === 'w' && !isAck(r)), B = g.recs.filter(r => r.who === 'b' && !isAck(r));
+  const tv = g.recvAt.b + 60;
+  sign(g, 's', { op: 242, seenW: W[W.length - 1].seq, seenB: B[B.length - 1].seq, label: 'result 1-0', auto: { res: 1, term: 1 } }, tv);
+  g.ev.push({ k: 'push', to: 'w', recs: ['S1'], t: tv + 1 }, { k: 'push', to: 'b', recs: ['S1'], t: tv + 2 });
+  send(g, 'b', { op: 229, args: [1, 1], label: 'END 1-0' }, tv + 300);
+  send(g, 'w', { op: 229, args: [1, 1], label: 'END 1-0' }, tv + 450);
+  step(g, 'Sign-off', 'The server signs VERDICT_RESULT with the final clocks, both players sign END. Two ENDs close the game for good.');
+  return finish(g, { id: 'anchored', group: 'Online', name: 'Anchored game', mode: 'anchored', initial: 180000, inc: 0, blurb: 'A 3+0 game with the direct link and anchors on every record.' });
+}
+
+function upToQh5(g, opts = {}) {
+  genesis(g, true, NET.direct);
+  move(g, 'w', MV.e4, { t: 1000 }); move(g, 'b', MV.e5); move(g, 'w', MV.Bc4, opts.Bc4); move(g, 'b', MV.Nc6, opts.Nc6);
+  if (opts.qh5 !== false) move(g, 'w', MV.Qh5, opts.Qh5);
+}
+
+function buildFork() {
+  const g = newGame({ mode: 'anchored', lat: NET.direct });
+  upToQh5(g);
+  step(g, 'Moves 1 to 5', 'A normal game up to Qh5: every record goes direct and is anchored.');
+  const t = g.recvAt.b + 3400;
+  const nf6 = sign(g, 'b', { op: 25, label: 'Nf6', ply: 6, legal: 28 }, t);
+  const arr = deliver(g, nf6);
+  const qe7 = sign(g, 'b', { op: 18, label: 'Qe7', ply: 6, legal: 28, altOf: nf6 }, t + 1);
+  g.ev.push({ k: 'anchor', from: 'b', recs: [qe7.id], t: t + 1 });
+  step(g, 'Two different record numbers alike', 'Black signs Nf6 for White and Qe7 for the server, both with the same record number on the same history. Each copy alone verifies.');
+  ack(g, 'w', nf6, arr);
+  g.ev.push({ k: 'anchor', from: 'w', recs: [nf6.id], t: arr + 2 });
+  note(g, 's', 'bad', 'Server: two different signed payloads for one Black record number. That is a fork, and the two signatures are the proof.', arr + 45);
+  step(g, 'White anchors what it received', 'Clients anchor the records they receive too. Now the server holds both payloads.');
+  const W = g.recs.filter(r => r.who === 'w' && !isAck(r));
+  sign(g, 's', { op: 242, seenW: W[W.length - 1].seq, seenB: nf6.seq, label: 'result 1-0', auto: { res: 1, term: 17 } }, arr + 100);
+  g.ev.push({ k: 'push', to: 'w', recs: ['S1'], t: arr + 101 }, { k: 'push', to: 'b', recs: ['S1'], t: arr + 102 });
+  step(g, 'Verdict', 'The server signs the result: Black loses by fork. Only a client that broke the one rule can get here.');
+  return finish(g, { id: 'fork', group: 'Online', name: 'Fork', mode: 'anchored', initial: 180000, inc: 0, blurb: 'Black sends one move to White and another to the server.' });
+}
+
+function buildPreAnchor() {
+  const g = newGame({ mode: 'anchored', lat: NET.direct });
+  upToQh5(g);
+  step(g, 'Moves 1 to 5', 'A normal game up to Qh5.');
+  const t0 = g.recvAt.b + 30;
+  g.ev.push({ k: 'anchor', from: 'b', recs: [], label: '28 candidate hashes', t: t0 });
+  note(g, 's', 'bad', 'Server: rejected. An anchor carries signed payloads, never bare hashes: a hash can be computed before the move is chosen.', t0 + 41);
+  step(g, '28 bare hashes', 'Black hashes all 28 possible replies and anchors the hashes, to think for a minute and still claim an early time.');
+  const a = sign(g, 'b', { op: 25, label: 'Nf6', ply: 6, legal: 28 }, t0 + 100);
+  const b = sign(g, 'b', { op: 12, label: 'g6', ply: 6, legal: 28, altOf: a }, t0 + 101);
+  g.ev.push({ k: 'anchor', from: 'b', recs: [a.id, b.id], t: t0 + 102 });
+  note(g, 's', 'bad', 'Server: two signed payloads for one Black record number. Fork.', t0 + 143);
+  step(g, 'Two signed candidates', 'So Black signs two candidates and anchors them. To pre-anchor a move it has to sign it.');
+  const W = g.recs.filter(r => r.who === 'w' && !isAck(r));
+  sign(g, 's', { op: 242, seenW: W[W.length - 1].seq, seenB: a.seq, label: 'result 1-0', auto: { res: 1, term: 17 } }, t0 + 200);
+  g.ev.push({ k: 'push', to: 'w', recs: ['S1'], t: t0 + 201 }, { k: 'push', to: 'b', recs: ['S1'], t: t0 + 202 });
+  step(g, 'Verdict', 'Signing two candidates is a fork and loses. Signing one early is simply playing it early.');
+  return finish(g, { id: 'preanchor', group: 'Online', name: 'Pre-anchor', mode: 'anchored', initial: 180000, inc: 0, blurb: 'Black tries to stop its clock before choosing a move.' });
+}
+
+function buildCrossing() {
+  const g = newGame({ mode: 'anchored', lat: NET.direct });
+  upToQh5(g, { qh5: false });
+  step(g, 'Moves 1 to 4', 'A normal game up to Nc6.');
+  const t3 = g.recvAt.w + 900;
+  const offer = send(g, 'w', { op: 219, label: 'draw offer' }, t3);
+  step(g, 'White offers a draw', 'A draw offer is a record like any other: signed, numbered, acknowledged, anchored.');
+  const qh5 = sign(g, 'w', { op: 5, label: 'Qh5', ply: 5, legal: 33 }, t3 + 800);
+  g.ev.push({ k: 'anchor', from: 'w', recs: [qh5.id], t: t3 + 800 });
+  const acc = sign(g, 'b', { op: 220, label: 'draw accept' }, t3 + 810);
+  g.ev.push({ k: 'anchor', from: 'b', recs: [acc.id], t: t3 + 810 });
+  const a1 = deliver(g, qh5), a2 = deliver(g, acc);
+  ack(g, 'b', qh5, a1); ack(g, 'w', acc, a2);
+  step(g, 'Two records cross', "Black accepts while White, not waiting, plays Qh5. Neither had seen the other's record: they are concurrent (gold box in the graph).");
+  const tv = a2 + 200;
+  note(g, 'w', 'good', 'White: order is offer, Qh5, accept. Draw after Qh5.', tv - 50);
+  note(g, 'b', 'good', 'Black: same order, same draw. Qh5 is added to the board.', tv - 40);
+  const W = g.recs.filter(r => r.who === 'w' && !isAck(r)), B = g.recs.filter(r => r.who === 'b' && !isAck(r));
+  sign(g, 's', { op: 242, seenW: W[W.length - 1].seq, seenB: B[B.length - 1].seq, label: 'result 1/2', auto: { res: 3, term: 11 } }, tv);
+  g.ev.push({ k: 'push', to: 'w', recs: ['S1'], t: tv + 1 }, { k: 'push', to: 'b', recs: ['S1'], t: tv + 2 });
+  step(g, 'Same result everywhere', "Every device runs the same canonical order: concurrent move first, so Qh5 is played; White's own offer stands through its own move; Black's acceptance is then valid. Draw.");
+  return finish(g, { id: 'crossing', group: 'Online', name: 'Records cross', mode: 'anchored', initial: 180000, inc: 0, blurb: 'A draw acceptance and a move are signed at the same time.' });
+}
+
+function buildWithhold() {
+  const g = newGame({ mode: 'anchored', lat: NET.direct });
+  upToQh5(g, { qh5: false });
+  step(g, 'Moves 1 to 4', 'A normal game up to Nc6.');
+  const t = g.recvAt.w + 1500;
+  const q = sign(g, 'w', { op: 5, label: 'Qh5', ply: 5, legal: 33 }, t);
+  g.ev.push({ k: 'anchor', from: 'w', recs: [q.id], t });
+  const tp = t + NET.server + 1;
+  g.ev.push({ k: 'push', to: 'b', recs: [q.id], t: tp });
+  g.recvAt.b = tp;
+  ack(g, 'b', q, tp);
+  step(g, 'Anchored, held back', "White anchors Qh5 at once but delays the direct copy by 8 s, hoping Black's clock starts late. The server pushes every anchored record to the opponent, so Black has Qh5 41 ms later anyway and acknowledges it.");
+  move(g, 'b', MV.Nf6);
+  g.ev.push({ k: 'direct', from: 'w', to: 'b', recs: [q.id], t: t + 8000, dt: NET.direct, label: 'Qh5, held 8 s' });
+  step(g, 'Black answers', 'Black thinks 3.4 s from the push and plays Nf6. The held-back copy arrives much later and is dropped as a duplicate.');
+  note(g, 's', 'good', 'Server: Nf6 interval = E(Nf6) - E(Qh5), lag refunded from the quota. The 8 s hold changed nothing.', t + 8100);
+  step(g, 'Charges', "Click Nf6: Black is charged its own think time. White gained nothing.");
+  return finish(g, { id: 'withhold', group: 'Online', name: 'Withhold', mode: 'anchored', initial: 180000, inc: 0, blurb: 'White anchors a move but holds the direct copy back.' });
+}
+
+function buildFlagAnchored() {
+  const g = newGame({ mode: 'anchored', lat: NET.direct });
+  upToQh5(g, { Bc4: { think: 2000 }, Nc6: { think: 9000 }, qh5: false });
+  step(g, '15 seconds each', 'Black spends 9 s on Nc6 and has 6.0 s left.');
+  const q = move(g, 'w', MV.Qh5, { receipt: true, push: true });
+  step(g, 'Qh5, then silence', "White plays Qh5. Black's clock runs from the existence time of Qh5, and Black does not move.");
+  const B = g.recs.filter(r => r.who === 'b' && !isAck(r));
+  const tf = q.t + NET.server + 6000 + 100;
+  sign(g, 's', { op: 240, args: [2], seenW: q.seq, seenB: B[B.length - 1].seq, label: 'flag Black' }, tf);
+  sign(g, 's', { op: 242, seenW: q.seq, seenB: B[B.length - 1].seq, label: 'result 1-0', auto: { res: 1, term: 3, b: 0 } }, tf + 1);
+  g.ev.push({ k: 'push', to: 'w', recs: ['S1', 'S2'], t: tf + 2 }, { k: 'push', to: 'b', recs: ['S1', 'S2'], t: tf + 3 });
+  step(g, 'The server flags Black', 'No Black record exists in time, so the server signs VERDICT_FLAG with seen = the last records that made it, then the result.');
+  const late = move(g, 'b', MV.Nf6, { t: tf + 700, recLabel: 'Nf6 (late)' });
+  late.void = 'After VERDICT_FLAG in the canonical order: the game is over.';
+  note(g, 's', 'bad', 'Server: Nf6 void, the game ended at the flag.', tf + 745);
+  step(g, 'A late move', 'The verdict comes before every record it had not seen, so Nf6 is void, without penalty.');
+  return finish(g, { id: 'flag', group: 'Online', name: 'Flag', mode: 'anchored', initial: 15000, inc: 0, blurb: '15 seconds per side, Black stops moving.' });
+}
+
+// ------------------------------------------------------------ model
+function prepare(sc) {
+  sc.byId = Object.fromEntries(sc.records.map(r => [r.id, r]));
+  sc.genesis = sha256(ascii('PSCHAL01|PSACPT01|PSSTRT01|demo genesis ' + sc.id));
+  sc.h = {};
+  const full = simulate(sc, sc.steps.length - 1);
+  const clk = clocks(sc, full);
+  sc.records.filter(r => r.auto).forEach(r => {
+    const w = r.auto.w ?? clk.w.rem, b = r.auto.b ?? clk.b.rem;
+    r.args = [r.auto.res, r.auto.term, ...varint(Math.max(0, Math.round(w))), ...varint(Math.max(0, Math.round(b)))];
+  });
+}
+const canon = (sc, who, seq) => sc.records.find(x => x.who === who && x.seq === seq && !x.alt);
+function deps(sc, r) {
+  const d = [];
+  if (r.seq > 1) d.push(canon(sc, r.who, r.seq - 1));
+  if (r.who === 's') { if (r.seenW) d.push(canon(sc, 'w', r.seenW)); if (r.seenB) d.push(canon(sc, 'b', r.seenB)); }
+  else if (r.seen) d.push(canon(sc, opp(r.who), r.seen));
+  return d.filter(Boolean);
+}
+const argBytes = r => new Uint8Array(r.args || []);
+const hashOf = (sc, r) => r ? (sc.h[r.id] ||= sha256(payload(sc, r))) : new Uint8Array(32);
+function payloadFields(sc, r) {
+  const prev = r.seq > 1 ? hashOf(sc, canon(sc, r.who, r.seq - 1)) : sc.genesis;
+  const f = [
+    { n: 'magic', b: ascii('PSREC001'), v: 'PSREC001' },
+    { n: 'genesis_hash', b: sc.genesis, v: short(sc.genesis) },
+    { n: 'signer', b: u8(SIGNER[r.who]), v: `${SIGNER[r.who]} (${WHO[r.who]})` },
+    { n: 'seq', b: u32(r.seq), v: r.seq, wire: true },
+    { n: 'prev', b: prev, v: short(prev) + (r.seq > 1 ? ` (${WHO[r.who]} ${r.seq - 1})` : ' (genesis)') },
+  ];
+  if (r.who === 's') {
+    const hw = r.seenW ? hashOf(sc, canon(sc, 'w', r.seenW)) : new Uint8Array(32);
+    const hb = r.seenB ? hashOf(sc, canon(sc, 'b', r.seenB)) : new Uint8Array(32);
+    f.push({ n: 'seen_white', b: u32(r.seenW), v: r.seenW, wire: true }, { n: 'seen_white_hash', b: hw, v: short(hw) },
+      { n: 'seen_black', b: u32(r.seenB), v: r.seenB, wire: true }, { n: 'seen_black_hash', b: hb, v: short(hb) });
+  } else {
+    const sr = r.seen ? canon(sc, opp(r.who), r.seen) : null;
+    const sh = hashOf(sc, sr);
+    f.push({ n: 'seen', b: u32(r.seen), v: r.seen, wire: true }, { n: 'seen_hash', b: sh, v: sr ? `${short(sh)} (${WHO[sr.who]} ${sr.seq} ${sr.label})` : 'zeros' });
+  }
+  f.push({ n: 'at', b: u32(r.at), v: `${r.at} ms (${WHO[r.who]}'s clock)`, wire: true });
+  const a = argBytes(r);
+  f.push({ n: 'op', b: u8(r.op), v: `${r.op} (${opName(r.op)}${isMove(r) ? ' ' + r.label : ''})`, wire: true });
+  f.push({ n: 'args', b: a, v: a.length ? hex(a) : 'none', wire: true });
+  if (isMove(r)) f.push({ n: 'ply', b: u16(r.ply), v: r.ply }, { n: 'legal', b: u8(r.legal), v: r.legal });
+  return f;
+}
+const payload = (sc, r) => cat(...payloadFields(sc, r).map(f => f.b));
+// Demo stand-in for the 64-byte Ed25519 signature.
+function sigOf(sc, r) { const s1 = sha256(cat(payload(sc, r), ascii('demo-sig-' + r.who))); return cat(s1, sha256(s1)); }
+function wireFields(sc, r) {
+  const f = [{ n: 'seq', b: varint(r.seq), c: '#8B93A1' }];
+  if (r.who === 's') f.push({ n: 'seen_w', b: varint(r.seenW), c: '#6E7681' }, { n: 'seen_b', b: varint(r.seenB), c: '#6E7681' });
+  else f.push({ n: 'seen', b: varint(r.seen), c: '#6E7681' });
+  f.push({ n: 'at', b: varint(r.at), c: '#4CB782' });
+  f.push({ n: 'op', b: u8(r.op), c: '#E1E3E6' });
+  if ((r.args || []).length) f.push({ n: 'args', b: argBytes(r), c: '#3E9468' });
+  f.push({ n: 'signature', b: sigOf(sc, r), c: '#D4A84B' });
+  return f;
+}
+
+// Runs the events up to a step: who signed what, anchors, receipts, existence times.
+function simulate(sc, upto) {
+  const st = { signed: new Set(), E: {}, rcptOf: {}, receipts: [], heads: { w: 0, b: 0 }, hheads: { w: null, b: null }, rows: [] };
+  for (let i = 0; i <= upto; i++) {
+    for (const ev of sc.steps[i].ev) {
+      const row = { ev, step: i };
+      if (ev.k === 'sign') st.signed.add(ev.rec);
+      if (ev.k === 'verdict') { st.signed.add(ev.rec); st.E[ev.rec] = ev.t; }
+      if (ev.k === 'anchor') {
+        const at = ev.t + (ev.dt || NET.server);
+        for (const id of ev.recs) {
+          const r = sc.byId[id];
+          if (r.seq >= st.heads[r.who] && !r.alt) { st.heads[r.who] = r.seq; st.hheads[r.who] = r; }
+        }
+        const n = st.receipts.length + 1;
+        st.receipts.push({ n, t: at, by: ev.from, heads: { ...st.heads }, hrec: { ...st.hheads }, recs: ev.recs, label: ev.label });
+        row.receipt = n;
+        for (const id of ev.recs) {
+          const r = sc.byId[id];
+          const chain = r.alt ? [r] : sc.records.filter(x => x.who === r.who && !x.alt && x.seq <= r.seq);
+          chain.forEach(x => { if (st.E[x.id] == null) { st.E[x.id] = at; st.rcptOf[x.id] = n; } });
+        }
+      }
+      if (ev.k === 'receipt') { const rc = [...st.receipts].reverse().find(x => x.by === ev.to); row.receipt = rc && rc.n; }
+      st.rows.push(row);
+    }
+  }
+  return st;
+}
+
+// Lag quota (spec/PAWNSHAKE.md, "Lag quota"), a port of lichess' LagTracker.
+function Lag(initial, inc) {
+  const est = Math.floor((initial + 40 * inc) / 1000);
+  const gain = Math.min(1000, est * 4 + 150);
+  const l = { gain, quota: 3 * gain, max: 7 * gain, avg: 0 };
+  l.comp = lag => { const ms = Math.max(lag, 0), c = Math.min(ms, l.quota); l.quota = Math.min(l.quota + l.gain - c, l.max); l.avg = l.avg ? Math.floor((l.avg * 7 + ms) / 8) : ms; return c; };
+  return l;
+}
+
+// The clock function of PAWNSHAKE.md ("Clocks"), over the records signed so
+// far, in canonical order. Everything here reads `at`, never true time.
+function clocks(sc, st) {
+  const P = sc.profile;
+  const out = { w: { rem: sc.initial }, b: { rem: sc.initial }, per: {}, toMove: 'w', theta: null, rtt: null, J: P.j_min_ms, budget: sc.budget, status: 'running', why: '' };
+  const win = { w: [], b: [] }, lag = { w: Lag(sc.initial, sc.inc), b: Lag(sc.initial, sc.inc) };
+  const ackBy = {}, moves = [], resume = { w: false, b: false }, ended = { w: false, b: false };
+  const end = (status, why) => { if (out.status === 'running') { out.status = status; out.why = why; out.toMove = null; } };
+  for (const r of order(sc, st.signed)) {
+    if (r.alt) continue;
+    if (r.who === 's') {
+      if (r.op === 241) { const X = r.args[0] === 2 ? 'b' : 'w', o = LEAVE[P.leave_with_arbiter]; if (o === 'loss') out[X].rem = Math.max(out[X].rem, 0); end(o === 'cancel' ? 'canceled' : 'ended', `${WHO[X]} went away (${o})`); continue; }
+      if (r.op === 240) { const X = r.args[0] === 2 ? 'b' : 'w'; out[X].rem = 0; end('ended', `${WHO[X]} flagged (verdict)`); } if (r.op === 242) end('ended', 'server verdict'); continue; }
+    if (isAck(r)) {
+      ackBy[r.who + ':' + r.seen] = r;
+      const tgt = canon(sc, opp(r.who), r.seen);
+      if (!tgt || isAck(tgt)) continue;
+      const u = r.at - tgt.at, w = win[tgt.who];
+      w.push(u); if (w.length > P.sample_window) w.shift();
+      if (win.w.length && win.b.length) { const mw = Math.min(...win.w), mb = Math.min(...win.b); out.rtt = mw + mb; out.theta = (mw - mb) / 2; out.J = Math.max(P.j_rtt_mult * out.rtt, P.j_min_ms); }
+      const mDir = Math.min(...w), excess = Math.max(0, u - mDir - out.J);
+      const info = { u, mDir, excess, J: out.J, rtt: out.rtt, theta: out.theta };
+      if (sc.mode === 'peer') {
+        const covered = Math.min(excess, out.budget); out.budget -= covered;
+        Object.assign(info, { covered, over: excess - covered, budgetLeft: out.budget });
+        if (excess - covered > 0) {
+          if (out.status === 'running' || (out.status === 'ended' && out.why.startsWith('checkmate'))) { out.status = 'canceled'; out.why = `outage beyond the pause budget on ${tgt.label}`; out.toMove = null; resume.w = resume.b = false; }
+        }
+      }
+      out.per[tgt.id] = { ...(out.per[tgt.id] || {}), transit: info };
+      continue;
+    }
+    if (r.op === 232) { resume[r.who] = true; if (resume.w && resume.b && out.status === 'canceled' && out.why.startsWith('outage')) { out.status = 'running'; out.why = 'resumed by both'; out.toMove = moves.length % 2 ? 'b' : 'w'; } continue; }
+    if (r.op === 231) { if (!ended[r.who]) { out.status = 'disputed'; out.why = `${WHO[r.who]} signed DISPUTE (${DISPUTE_REASON[r.args[0]]})`; out.toMove = null; } continue; }
+    if (r.op === 229) { ended[r.who] = true; continue; }
+    if (out.status !== 'running') continue;
+    if (r.op === 218) { end('ended', `${WHO[r.who]} resigned`); continue; }
+    if (r.op === 233) {
+      if (r.args[0] === 2) { end('canceled', `${WHO[r.who]}: opponent gone`); continue; }
+      const o = LEAVE[sc.arbiter === 'none' ? P.leave_offline : P.leave_with_arbiter];
+      end(o === 'cancel' ? 'canceled' : 'ended', `${WHO[r.who]} left (${o})`); continue;
+    }
+    if (r.op === 220) { end('ended', 'draw agreed'); continue; }
+    if (r.op === 226) { end('ended', `${WHO[r.who]} flagged`); continue; }
+    if (r.op === 227 && sc.mode === 'peer') {
+      const X = opp(r.who), lastY = moves.filter(m => m.who === r.who).pop();
+      const start = lastY && ackBy[X + ':' + lastY.seq];
+      if (out.toMove !== X || !start || out.theta == null) { out.per[r.id] = { claim: { valid: false } }; continue; }
+      const conv = X === 'b' ? r.at + out.theta : r.at - out.theta;
+      const elapsed = conv - start.at, valid = elapsed > out[X].rem + out.J;
+      out.per[r.id] = { claim: { valid, elapsed, rem: out[X].rem, J: out.J, conv } };
+      if (valid) { out[X].rem -= elapsed; end('ended', `${WHO[X]} flagged (claim)`); }
+      continue;
+    }
+    if (!isMove(r) || r.void) continue;
+    moves.push(r);
+    out.toMove = opp(r.who);
+    if (r.ply < 3) { out.per[r.id] = { ...(out.per[r.id] || {}), clock: { free: true } }; if (r.term) end('ended', 'checkmate'); continue; }
+    const prev = moves.find(x => x.ply === r.ply - 1), k = prev && ackBy[r.who + ':' + prev.seq];
+    const think = k ? r.at - k.at : null;
+    if (sc.mode === 'peer') {
+      out[r.who].rem -= think;
+      out.per[r.id] = { ...(out.per[r.id] || {}), clock: { think, rem: out[r.who].rem } };
+      if (out[r.who].rem < 0) { end('ended', `${WHO[r.who]} flagged (own stamps)`); continue; }
+      out[r.who].rem += sc.inc;
+    } else {
+      if (st.E[r.id] == null || st.E[prev.id] == null) { out.per[r.id] = { clock: { pending: true, think } }; continue; }
+      const interval = st.E[r.id] - st.E[prev.id], refund = lag[r.who].comp(interval - think), charge = interval - refund;
+      out[r.who].rem += sc.inc - charge;
+      out.per[r.id] = { ...(out.per[r.id] || {}), clock: { think, interval, refund, charge, rem: out[r.who].rem } };
+    }
+    if (r.term) end('ended', 'checkmate');
+  }
+  return out;
+}
+
+// Canonical order (PAWNSHAKE.md, "Applying records").
+function order(sc, signed) {
+  const recs = sc.records.filter(r => signed.has(r.id)), placed = new Set(), out = [];
+  const cls = r => r.who === 's' ? -1 : (r.op <= 217 ? 0 : (r.op === 229 ? 1 : 2));
+  while (out.length < recs.length) {
+    const ready = recs.filter(r => !placed.has(r.id) && deps(sc, r).every(d => placed.has(d.id) || !signed.has(d.id)));
+    if (!ready.length) break;
+    ready.sort((a, b) => cls(a) - cls(b) || (a.who === 'w' ? -1 : 1) - (b.who === 'w' ? -1 : 1) || (a.alt ? 1 : 0) - (b.alt ? 1 : 0));
+    placed.add(ready[0].id); out.push(ready[0]);
+  }
+  return out;
+}
+function concurrent(a, b) {
+  if (a.who === b.who || a.who === 's' || b.who === 's') return false;
+  return a.seen < b.seq && b.seen < a.seq;
+}
+
+// ------------------------------------------------------------ formats + decisions
+const PROFILE_TEXT = {
+  j_min_ms: 'smallest transit allowance', j_rtt_mult: 'allowance as a multiple of the round trip', sample_window: 'transit samples per direction', pause_budget_ms: 'outage time forgiven per game, shared',
+  ping_interval_ms: 'live-check pings', rate_tolerance_ppm: 'allowed clock rate difference', checkpoint_interval_ms: 'presence checkpoints (hybrid)', away_after_ms: 'how long the game may wait on an absent player',
+  leave_with_arbiter: 'leaving with an arbiter: 0 cancel, 1 loss, 2 draw', leave_offline: 'leaving without an arbiter', free_first_moves: 'first move of each side is free', takebacks: 'takeback offers allowed', report_wait_days: 'wait for the second report',
+};
+function profileCard() {
+  const p = whitepawnProfile(180000, 0);
+  return `<div class="card"><h2>Rules profile whitepawn/1</h2><p class="lead">Every policy value is a numbered key in CHALLENGE, signed by both players. Other apps pick their own; verifiers use the values in the genesis. Blitz values shown.</p>
+    <table style="margin-top:8px"><tr><th>Key</th><th>Parameter</th><th>Value</th></tr>${PROFILE_KEYS.map((k, i) => `<tr><td>${i + 1}</td><td>${k}<div class="muted" style="font-size:11.5px">${PROFILE_TEXT[k]}</div></td><td class="mono">${p[k]}</td></tr>`).join('')}</table></div>`;
+}
+const FORMATS = [
+  { title: 'Signature', text: 'Ed25519 (RFC 8032), 64 bytes, deterministic. Verification pinned to ZIP-215 so every device agrees on which signatures are valid.', head: ['Part', 'Bytes', 'How'], rows: [
+    ['R', '32', 'nonce point, from SHA-512(key prefix | m)'], ['S', '32', 'scalar, must be canonical'], ['verify', '', 'ZIP-215: ed25519consensus (Go), noble zip215 (web), ed25519-zebra (Rust)'], ['total', '64', '']] },
+  { title: 'Signed payload', text: 'Rebuilt by every verifier from its own state. Only the fields marked "sent" travel; the rest are checked through the signature.', head: ['Field', 'Bytes', 'Sent'], rows: [
+    ['magic "PSREC001"', '8', 'no'], ['genesis_hash', '32', 'no'], ['signer (0 white, 1 black, 2 server)', '1', 'no, the link or container says it'], ['seq', '4', 'yes, varint'], ['prev (hash of own seq-1)', '32', 'no'], ['seen', '4', 'yes, varint'], ['seen_hash', '32', 'no'], ['at (signer clock, ms)', '4', 'yes, varint'], ['op', '1', 'yes'], ['args', 'n', 'yes'], ['ply (moves only)', '2', 'no'], ['legal (moves only)', '1', 'no']] },
+  { title: 'Op byte', text: 'One byte says what a record is. A move is just its move code; every record carries at, so no record needs a duration.', head: ['op', 'Record', 'Args'], rows: [
+    ['0..217', 'MOVE, op = move code', ''], ['218', 'RESIGN', ''], ['219..221', 'DRAW_OFFER / ACCEPT / DECLINE', ''], ['222..224', 'TAKEBACK_OFFER / ACCEPT / DECLINE', ''], ['225', 'ABORT', ''], ['226', 'FLAGGED (my clock ran out)', ''], ['227', 'FLAG_CLAIM (as of my at)', ''], ['229', 'END', 'result, termination'], ['230', 'ACK (applied your seen at my at)', ''], ['231', 'DISPUTE', 'reason, subject seq'], ['232', 'RESUME', ''], ['233', 'CANCEL', 'reason: 1 leave, 2 opponent gone'], ['240..242', 'VERDICT_FLAG / ABANDON / RESULT (server)', 'color / result, termination, clocks']] },
+  { title: 'Peer clock function', text: 'Both devices and the report checker compute the clocks the same way from the signed timestamps.', head: ['Quantity', 'Rule'], rows: [
+    ['think(move)', 'at(move) - at(mover\'s ACK of the opponent\'s previous move)'], ['u(r)', 'at(ACK of r) - at(r), one transit sample across two clocks'], ['rtt, theta', 'from the smallest u per direction over the last 16'], ['J', 'max(2 * rtt, 30 ms)'], ['excess(r)', 'max(0, u(r) - smallest u in its direction - J)'], ['pause budget', '2 / 5 / 10 / 20 s per game by speed, shared'], ['beyond budget', 'disconnected, unless both sign RESUME']] },
+  { title: 'Live checks (peer)', text: 'Each device checks the opponent against its own clock, using pings every 250 ms on the same ordered link. A failure means DISPUTE.', head: ['Check', 'Fails when'], rows: [
+    ['late ACK', 'an ACK claims receipt after the PONG that proves it'], ['early send', 'a record is stamped before a PING its sender sent earlier on the link'], ['future', 'a record is stamped after its arrival allows'], ['clock rate', 'the opponent clock runs more than 0.1 % off'], ['asymmetry', 'chain rtt exceeds my ping round trip by more than J']] },
+  { title: 'Genesis', text: 'Three messages peer to peer. Commit-reveal on the nonces so nobody picks the colors.', head: ['Message', 'Fields'], rows: [
+    ['CHALLENGE (A)', 'cert_A, initial, increment, rated, arbiter (none / checkpoints / full), color, rules profile, commit = H(nonce_A), sig_A'], ['ACCEPT (B)', 'H(CHALLENGE), cert_B, nonce_B, sig_B'], ['START (A)', 'H(ACCEPT), nonce_A, sig_A'], ['genesis_hash', 'SHA-256(CHALLENGE | ACCEPT | START)']] },
+  { title: 'Device certificate', text: 'Issued while online, valid 30 days, checked offline against the server key built into the app.', head: ['Field', 'Bytes'], rows: [
+    ['magic "PSCERT01"', '8'], ['key_id', '1'], ['user_id', '1 + n'], ['device_pk', '32'], ['issued, expires', '4 + 4'], ['server_sig', '64']] },
+  { title: 'Anchor receipt', text: "The server's signed statement that it held these heads at server time T. Receipts of a game form their own chain.", head: ['Field', 'Bytes'], rows: [
+    ['magic "PSANCH01", key_id', '8 + 1'], ['genesis_hash', '32'], ['white_seq, white_hash', '4 + 32'], ['black_seq, black_hash', '4 + 32'], ['state_hash, state_verified', '32 + 1'], ['server_ms, anchor_no', '8 + 4'], ['prev_receipt', '32'], ['server_sig', '64'], ['total', '254']] },
+];
+const DECISIONS = [
+  { id: 'rated_peer', title: 'Rated offline games', text: 'Can an offline game, timed by the peer clock function, change ratings?', opts: ['Never', 'Final games between friends', 'All final games'] },
+  { id: 'server_loss', title: 'Server lost in an anchored game', text: 'A player loses its server link in the middle of an anchored game.', opts: ["Disconnected player's clock runs", 'Both clocks pause up to 15 s'] },
+  { id: 'anchor_rate', title: 'Anchor rate in offline games', text: 'Anchors are optional there; how often should a client send them when online?', opts: ['Every record', 'Batched per N records or per minute', 'Only at the end'] },
+  { id: 'attest', title: 'App attestation', text: 'Play Integrity / App Attest on rated offline games, to make modified clients harder.', opts: ['Yes', 'No'] },
+  { id: 'strangers', title: 'Direct link with strangers', text: "A direct link shows each player the other's IP address.", opts: ['Off', 'Relay only', 'On'] },
+  { id: 'web', title: 'Web clients', text: 'Browsers only reach iroh through a relay.', opts: ['Server path only', 'WebRTC data channel later'] },
+  { id: 'receive_anchor', title: 'Anchor received records too', text: 'Clients anchor what they sign. Anchoring what they receive catches forks at once but doubles the anchors.', opts: ['Always', 'Only when the sender looks offline', 'Never'] },
+];
+
+// ------------------------------------------------------------ state + storage
+const SCENARIOS = [buildPeerHonest(), buildPeerEarly(), buildPeerLateAck(), buildPeerOutage(), buildPeerFlag(), buildPeerHopOff(), buildHybridAway(), buildAnchored(), buildFork(), buildPreAnchor(), buildCrossing(), buildWithhold(), buildFlagAnchored()];
+SCENARIOS.forEach(prepare);
+const S = { view: 'scenarios', sc: 0, step: 0, sel: null };
+let store = { notes: {}, decisions: {}, dnotes: {} };
+try { store = { ...store, ...JSON.parse(localStorage.getItem('pawnshake-viz') || localStorage.getItem('wp-chain-viz') || '{}') }; } catch (e) { /* no storage in this frame */ }
+const save = () => { try { localStorage.setItem('pawnshake-viz', JSON.stringify(store)); } catch (e) { /* ignore */ } };
+const sc = () => SCENARIOS[S.sc];
+
+// ------------------------------------------------------------ rendering
+const app = document.getElementById('app');
+if (window.top === window) document.documentElement.classList.add('standalone');
+
+function render() {
+  const views = [['scenarios', 'Scenarios'], ['formats', 'Formats'], ['decisions', 'Decisions']];
+  let h = `<div class="top"><div><h1>Pawnshake protocol</h1><p class="muted" style="margin-top:4px">Draft of spec/PAWNSHAKE.md. Step through a scenario, click any record, write notes for the next iteration.</p></div>
+    <div class="pills">${views.map(([k, l]) => `<button class="pill ${S.view === k ? 'on' : ''}" data-view="${k}">${l}</button>`).join('')}<button class="btn" id="copy">Copy notes</button></div></div>`;
+  if (S.view === 'scenarios') h += renderScenario();
+  if (S.view === 'formats') h += renderFormats();
+  if (S.view === 'decisions') h += renderDecisions();
+  app.innerHTML = h;
+  bind();
+}
+
+function renderScenario() {
+  const s = sc(), st = simulate(s, S.step), step = s.steps[S.step];
+  if (!S.sel) S.sel = defaultSel(s, st);
+  const clk = clocks(s, st);
+  const group = g => `<div class="pills"><span class="muted" style="font-size:12px;align-self:center;width:58px">${g}</span>${SCENARIOS.map((x, i) => x.group === g ? `<button class="pill ${i === S.sc ? 'on' : ''}" data-sc="${i}">${esc(x.name)}</button>` : '').join('')}</div>`;
+  return `
+  <div style="display:flex;flex-direction:column;gap:6px">${group('Offline')}${group('Hybrid')}${group('Online')}</div>
+  <div class="card">
+    <div class="step-head">
+      <div><div class="stepno">${esc(s.blurb)} Arbiter: ${s.arbiter}, clocks: ${s.mode}. Step ${S.step + 1} of ${s.steps.length}.</div><h2 style="margin-top:6px">${esc(step.title)}</h2></div>
+      <div class="step-ctl"><button class="btn" id="prev" ${S.step === 0 ? 'disabled' : ''}>Back</button><input type="range" id="range" min="0" max="${s.steps.length - 1}" value="${S.step}"><button class="btn primary" id="next" ${S.step === s.steps.length - 1 ? 'disabled' : ''}>Next</button></div>
+    </div>
+    <p class="lead" style="margin-top:6px">${esc(step.text)}</p>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Messages</h2><p class="lead">Time runs down (true time, White's clock). Solid: records peer to peer, thin: ACKs. Grey dotted: pings. Gold: anchors and pushes.</p><div class="scroll-x">${seqSvg(s, st)}</div></div>
+    <div class="side">
+      <div class="card">${inspector(s, st, S.sel, clk)}</div>
+      <div class="card">${clockCard(s, clk)}</div>
+    </div>
+  </div>
+  <div class="card"><h2>Record graph</h2><p class="lead">Columns are the canonical order every device computes. Grey lines: prev. Dashed: the opponent record a record had seen. Small nodes are ACKs.</p><div class="scroll-x">${dagSvg(s, st)}</div>
+    <div class="legend"><span><i style="border-color:#6E7681"></i>prev</span><span><i style="border-color:#6E7681;border-top-style:dashed"></i>seen</span><span><i style="border-color:var(--c-red)"></i>fork or void</span><span><i style="border-color:var(--c-gold)"></i>concurrent pair</span></div></div>
+  <div class="card"><h2>Notes on this scenario</h2><p class="lead">Kept in this browser and included in "Copy notes".</p><textarea id="note" placeholder="What is wrong, missing or should change here?">${esc(store.notes[s.id] || '')}</textarea></div>`;
+}
+
+function defaultSel(s, st) {
+  const signs = st.rows.filter(r => r.step === S.step && (r.ev.k === 'sign' || r.ev.k === 'verdict') && !isAck(s.byId[r.ev.rec]));
+  if (signs.length) return { kind: 'rec', id: signs[0].ev.rec };
+  const acks = st.rows.filter(r => r.step === S.step && r.ev.k === 'sign');
+  if (acks.length) return { kind: 'rec', id: acks[0].ev.rec };
+  const rc = st.rows.filter(r => r.step === S.step && r.receipt);
+  if (rc.length) return { kind: 'receipt', n: rc[0].receipt };
+  const g = st.rows.find(r => r.step === S.step && r.ev.k === 'gen');
+  if (g) return { kind: 'gen', label: g.ev.label };
+  return { kind: 'none' };
+}
+
+const LANE = { w: 90, b: 330, s: 570 };
+function seqSvg(s, st) {
+  const top = 46, W = 700, lanes = LANE;
+  const usesServer = st.rows.some(r => ['anchor', 'receipt', 'push', 'verdict', 'report'].includes(r.ev.k) || r.ev.who === 's');
+  let y = top, body = '';
+  const sel = S.sel || {};
+  st.rows.forEach(row => {
+    const ev = row.ev, cur = row.step === S.step, op = cur ? 1 : 0.45;
+    const rid = ev.rec || (ev.recs && ev.recs[0]);
+    const r = rid && s.byId[rid], ackRow = r && isAck(r);
+    const rowH = ackRow ? 22 : 28;
+    const tl = `<text x="4" y="${y + 4}" font-size="10" fill="var(--c-muted)" opacity="${op}">${fmtT(ev.t)}</text>`;
+    const isSel = (sel.kind === 'rec' && rid && sel.id === rid) || (sel.kind === 'receipt' && row.receipt === sel.n && (ev.k === 'anchor' || ev.k === 'receipt')) || (sel.kind === 'gen' && ev.label === sel.label);
+    const sw = isSel ? 2.4 : (ackRow ? 1 : 1.4);
+    const data = ev.k === 'gen' ? `data-gen="${ev.label}"` : (row.receipt && (ev.k === 'receipt' || (ev.k === 'anchor' && !ev.recs.length))) ? `data-rc="${row.receipt}"` : (rid ? `data-rec="${rid}"` : '');
+    const lbl = recs => recs.map(id => { const x = s.byId[id]; return `${WHO[x.who][0]}${x.seq} ${x.label}`; }).join(', ');
+    let g = '';
+    if (ev.k === 'sign' || ev.k === 'verdict') {
+      const x = lanes[ev.who || 's'] ?? LANE.s, bad = r.alt || r.void;
+      const col = bad ? 'var(--c-red)' : ev.k === 'verdict' ? 'var(--c-gold)' : (r.who === 'w' ? 'var(--c-w)' : 'var(--c-b)');
+      g = (ev.k === 'verdict' ? `<rect x="${x - 6}" y="${y - 6}" width="12" height="12" rx="2" fill="${col}"/>` : `<circle cx="${x}" cy="${y}" r="${ackRow ? 3.5 : 6}" fill="${col}"/>`) +
+        `<text x="${ev.k === 'verdict' ? x - 12 : x + 12}" text-anchor="${ev.k === 'verdict' ? 'end' : 'start'}" y="${y + 4}" font-size="${ackRow ? 10.5 : 12}" fill="${bad ? 'var(--c-red)' : ackRow ? 'var(--c-muted)' : 'var(--c-text)'}" ${isSel ? 'font-weight="700"' : ''}>signs ${r.who === 's' ? 'verdict' : '#' + r.seq} ${esc(r.label)}${r.who !== 's' ? `, at ${r.at}` : ''}</text>`;
+    } else if (ev.k === 'note') {
+      const col = ev.tone === 'bad' ? 'var(--c-red)' : 'var(--c-green)';
+      const lines = wrap(ev.text, 92);
+      g = `<rect x="40" y="${y - 12}" width="${W - 50}" height="${lines.length * 15 + 8}" rx="8" fill="${col}" fill-opacity=".1" stroke="${col}" stroke-opacity=".4"/>` +
+        lines.map((l, i) => `<text x="52" y="${y + 3 + i * 15}" font-size="12" fill="var(--c-text)">${esc(l)}</text>`).join('');
+      y += (lines.length - 1) * 15 + 4;
+    } else {
+      const from = ev.k === 'receipt' || ev.k === 'push' ? 's' : ev.from;
+      const to = ev.k === 'anchor' || ev.k === 'report' ? 's' : ev.to;
+      const x1 = lanes[from] ?? LANE.s, x2 = lanes[to] ?? LANE.s, gold = from === 's' || to === 's';
+      const ping = ev.k === 'ping' || ev.k === 'pong';
+      const col = ping ? 'var(--c-muted)' : gold ? 'var(--c-gold)' : 'var(--c-text)';
+      const dash = ev.k === 'anchor' || ev.k === 'report' ? '6 4' : (ev.k === 'receipt' || ev.k === 'push' || ping) ? '2 4' : '';
+      let text;
+      if (ev.k === 'gen' || ping) text = ev.label;
+      else if (ev.k === 'anchor') text = ev.label || 'anchor ' + lbl(ev.recs);
+      else if (ev.k === 'report') text = `report, ${ev.recs.length} records`;
+      else if (ev.k === 'receipt') text = 'receipt ' + (row.receipt || '');
+      else if (ev.k === 'push') text = 'push ' + lbl(ev.recs);
+      else text = (ev.label || lbl(ev.recs)) + (ev.dt > 200 ? ` (${fmtMs(ev.dt)})` : '');
+      const bad = ev.recs && ev.recs.some(id => s.byId[id].alt);
+      const c2 = bad ? 'var(--c-red)' : col;
+      const dir = x2 > x1 ? 1 : -1, drop = ev.k === 'direct' && ev.dt > 200 ? 14 : 8;
+      g = `<line x1="${x1}" y1="${y - 6}" x2="${x2 - dir * 6}" y2="${y + drop}" stroke="${c2}" stroke-width="${sw}" ${dash ? `stroke-dasharray="${dash}"` : ''} ${ackRow ? 'opacity=".7"' : ''}/>` +
+        `<path d="M${x2} ${y + drop + 1} l${-dir * 8} -5 l0 9 z" fill="${c2}" ${ackRow ? 'opacity=".7"' : ''}/>` +
+        `<text x="${(x1 + x2) / 2}" y="${y - 2}" text-anchor="middle" font-size="${ackRow || ping ? 10.5 : 11.5}" fill="${bad ? 'var(--c-red)' : ackRow || ping ? 'var(--c-muted)' : 'var(--c-text)'}" ${isSel ? 'font-weight="700"' : ''} paint-order="stroke" stroke="var(--c-panel)" stroke-width="4">${esc(text)}</text>`;
+    }
+    body += `<g class="clickable" ${data} opacity="${op}">${tl}${g}</g>`;
+    y += rowH;
+  });
+  const H = Math.max(y + 10, 120);
+  const heads = Object.entries(lanes).filter(([k]) => k !== 's' || usesServer).map(([k, x]) => `<line x1="${x}" y1="${top - 16}" x2="${x}" y2="${H}" stroke="var(--c-line)" stroke-width="1.5"/><text x="${x}" y="18" text-anchor="middle" font-size="12.5" font-weight="600" fill="${k === 's' ? 'var(--c-gold)' : 'var(--c-text)'}">${k === 's' ? 'Server (notary)' : WHO[k] + ' device'}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="min-width:560px">${heads}${body}</svg>`;
+}
+function wrap(t, n) { const w = t.split(' '), out = []; let l = ''; for (const x of w) { if ((l + ' ' + x).trim().length > n) { out.push(l); l = x; } else l = (l + ' ' + x).trim(); } if (l) out.push(l); return out; }
+
+function dagSvg(s, st) {
+  const ord = order(s, st.signed);
+  if (!ord.length) return '<p class="muted">No records yet: the genesis is not a record.</p>';
+  const Y = { w: 42, b: 112, s: 182 }, nh = 40;
+  const pos = {};
+  let x = 70;
+  ord.forEach(r => { const nw = isAck(r) ? 40 : 78; x += nw / 2; pos[r.id] = { x, y: Y[r.who], nw, nh: isAck(r) ? 26 : nh }; x += nw / 2 + 14; });
+  const hasS = ord.some(r => r.who === 's');
+  const H = hasS ? 216 : 146, W = x + 30;
+  let edges = '', nodes = '';
+  const line = (a, b, dashed, col = '#6E7681') => {
+    const p = pos[a.id], q = pos[b.id]; if (!p || !q) return '';
+    if (p.y === q.y) return `<line x1="${p.x + p.nw / 2}" y1="${p.y}" x2="${q.x - q.nw / 2}" y2="${q.y}" stroke="${col}" stroke-width="1.3"/>`;
+    const sy = p.y + (q.y > p.y ? p.nh / 2 : -p.nh / 2), ey = q.y + (q.y > p.y ? -q.nh / 2 : q.nh / 2);
+    return `<path d="M${p.x} ${sy} C${p.x} ${(sy + ey) / 2}, ${q.x} ${(sy + ey) / 2}, ${q.x} ${ey}" fill="none" stroke="${col}" stroke-width="1.1" ${dashed ? 'stroke-dasharray="5 4"' : ''}/>`;
+  };
+  ord.forEach(r => {
+    if (r.seq > 1) { const p = canon(s, r.who, r.seq - 1); if (p) edges += line(p, r, false); }
+    if (r.who === 's') { [['w', r.seenW], ['b', r.seenB]].forEach(([k, n]) => { if (n) edges += line(canon(s, k, n), r, true, 'var(--c-gold)'); }); }
+    else if (r.seen) edges += line(canon(s, opp(r.who), r.seen), r, true);
+  });
+  for (let i = 0; i + 1 < ord.length; i++) if (concurrent(ord[i], ord[i + 1]) && !isAck(ord[i]) && !isAck(ord[i + 1])) {
+    const a = pos[ord[i].id], b = pos[ord[i + 1].id];
+    edges += `<rect x="${a.x - a.nw / 2 - 6}" y="${Y.w - nh / 2 - 8}" width="${b.x - a.x + (a.nw + b.nw) / 2 + 12}" height="${Y.b - Y.w + nh + 16}" rx="12" fill="none" stroke="var(--c-gold)" stroke-dasharray="4 4"/>`;
+  }
+  ord.forEach((r, i) => {
+    const p = pos[r.id], selc = S.sel && S.sel.kind === 'rec' && S.sel.id === r.id, ackN = isAck(r);
+    const bad = r.alt || r.void;
+    const fill = bad ? 'rgba(235,87,87,.14)' : r.who === 's' ? 'rgba(212,168,75,.12)' : ackN ? 'transparent' : r.who === 'w' ? '#2A2D33' : '#1D1F23';
+    const stroke = selc ? 'var(--c-text)' : bad ? 'var(--c-red)' : 'var(--c-line)';
+    const label = ackN ? 'ACK' : (r.label.length > 11 ? r.label.slice(0, 10) + '.' : r.label);
+    nodes += `<g class="clickable" data-rec="${r.id}"><text x="${p.x}" y="${p.y - p.nh / 2 - 5}" text-anchor="middle" font-size="9.5" fill="var(--c-muted)">${i + 1}</text>
+      <rect x="${p.x - p.nw / 2}" y="${p.y - p.nh / 2}" width="${p.nw}" height="${p.nh}" rx="${ackN ? 8 : 10}" fill="${fill}" stroke="${stroke}" stroke-width="${selc ? 2 : 1}" ${r.void ? 'stroke-dasharray="4 3"' : ''}/>
+      ${ackN ? `<text x="${p.x}" y="${p.y + 4}" text-anchor="middle" font-size="10" fill="var(--c-muted)">ACK</text>` :
+      `<text x="${p.x}" y="${p.y - 3}" text-anchor="middle" font-size="10.5" fill="var(--c-muted)">${r.who === 's' ? 'server' : WHO[r.who].toLowerCase()} #${r.seq}</text>
+      <text x="${p.x}" y="${p.y + 12}" text-anchor="middle" font-size="12" fill="${bad ? 'var(--c-red)' : 'var(--c-text)'}" ${r.void ? 'text-decoration="line-through"' : ''}>${esc(label)}</text>`}</g>`;
+  });
+  const rowsL = `<text x="6" y="${Y.w + 4}" font-size="11" fill="var(--c-muted)">White</text><text x="6" y="${Y.b + 4}" font-size="11" fill="var(--c-muted)">Black</text>${hasS ? `<text x="6" y="${Y.s + 4}" font-size="11" fill="var(--c-gold)">Server</text>` : ''}`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="min-width:${Math.min(W, 1400)}px;max-width:${W}px">${rowsL}${edges}${nodes}</svg>`;
+}
+
+function explain(s, r) {
+  if (r.alt) return `A second ${WHO[r.who]} record number ${r.seq} on the same history. Together with ${canon(s, r.who, r.seq).label} it is the fork evidence.`;
+  if (r.void) return 'Void: ' + r.void;
+  if (isMove(r)) return `Move ${r.label}: code ${r.op} in the sorted list of the ${r.legal} legal moves of that position. It is ply ${r.ply}; ply and legal count are signed but never sent.`;
+  if (isAck(r)) { const t = canon(s, opp(r.who), r.seen); return `${WHO[r.who]} applied ${t ? WHO[t.who] + ' #' + t.seq + ' ' + t.label : 'record ' + r.seen} at ${r.at} ms on its own clock. One transit sample; no effect on the board.`; }
+  const m = {
+    218: 'The signer resigns.', 219: 'The signer offers a draw. It stands until the opponent moves, accepts or declines.', 220: 'Accepts the draw offer it had seen.', 227: "Claims the opponent's clock ran out, as of this record's at.", 229: 'Sign-off: the signer agrees with this result. Two ENDs close the game.',
+    233: 'CANCEL: reason 1 means I leave, reason 2 means my opponent is gone. Offline both cancel the game (WhitePawn); with an arbiter a leave loses.', 241: 'The server rules that a player went away: the game waited on it and it had no checkpoint of its own for away_after_ms while the opponent had.',
+    231: 'A live time check failed on the signer\'s device: the game ends disputed, no result, unrated.', 232: 'Agrees to continue after an outage beyond the pause budget. Both RESUMEs make the outage paused time.',
+    240: 'The server rules that a player flagged. Its seen fields mark which records made it in time.', 242: 'The server signs the final result and clocks.',
+  };
+  return m[r.op] || opName(r.op);
+}
+
+function inspector(s, st, sel, clk) {
+  if (!sel || sel.kind === 'none') return '<h2>Inspector</h2><p class="muted">Click a record or an arrow.</p>';
+  if (sel.kind === 'gen') {
+    const f = FORMATS.find(x => x.title === 'Genesis');
+    return `<h2>${esc(sel.label)}</h2><p class="lead">Part of the genesis handshake, not a record. All three together hash to the genesis hash every record signs.</p><table><tr>${f.head.map(h => `<th>${h}</th>`).join('')}</tr>${f.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+  }
+  if (sel.kind === 'receipt') {
+    const rc = st.receipts.find(x => x.n === sel.n);
+    if (!rc) return '<h2>Receipt</h2><p class="muted">Not issued yet at this step.</p>';
+    const prev = rc.n > 1 ? sha256(ascii('receipt ' + s.id + ' ' + (rc.n - 1))) : new Uint8Array(32);
+    const hw = rc.hrec.w ? hashOf(s, rc.hrec.w) : new Uint8Array(32), hb = rc.hrec.b ? hashOf(s, rc.hrec.b) : new Uint8Array(32);
+    const rows = [['magic, key_id', '9', 'PSANCH01, 1'], ['genesis_hash', '32', short(s.genesis)], ['white_seq, white_hash', '36', `${rc.heads.w}, ${short(hw)}`], ['black_seq, black_hash', '36', `${rc.heads.b}, ${short(hb)}`], ['state_hash, verified', '33', 'zeros, 0'], ['server_ms', '8', fmtT(rc.t)], ['anchor_no', '4', rc.n], ['prev_receipt', '32', rc.n > 1 ? short(prev) : 'zeros (first)'], ['server_sig', '64', 'demo']];
+    return `<h2>Receipt ${rc.n}</h2><p class="lead">The server signs that it held these heads at ${fmtT(rc.t)}${rc.label ? ' (' + esc(rc.label) + ')' : ''}. Every record up to a head now has an existence time.</p>
+      <table><tr><th>Field</th><th>Bytes</th><th>Value</th></tr>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td class="mono">${esc(r[2])}</td></tr>`).join('')}</table><p class="muted" style="margin-top:8px">254 bytes.</p>`;
+  }
+  const r = s.byId[sel.id];
+  if (!r) return '';
+  const known = st.signed.has(r.id);
+  const pf = payloadFields(s, r), wf = wireFields(s, r);
+  const pl = pf.reduce((n, f) => n + f.b.length, 0), wl = wf.reduce((n, f) => n + f.b.length, 0);
+  const per = clk.per[r.id] || {};
+  const ord = order(s, st.signed).findIndex(x => x.id === r.id);
+  const facts = [['Status', known ? 'signed' : 'not signed yet at this step'], ['Canonical order', ord >= 0 ? ord + 1 : 'n/a']];
+  if (r.who !== 's') facts.push(['at', `${r.at} ms on ${WHO[r.who]}'s clock${r.who === 'b' ? ' (runs ahead of White\'s)' : ''}`]);
+  if (s.mode === 'anchored') facts.push(['Existence time', st.E[r.id] != null ? fmtT(st.E[r.id]) + (st.rcptOf[r.id] ? ` (receipt ${st.rcptOf[r.id]})` : '') : 'not anchored']);
+  const c = per.clock;
+  if (c) {
+    if (c.free) facts.push(['Clock', 'first move of its side, no clock']);
+    else if (c.pending) facts.push(['Clock', `think ${fmtMs(c.think)}, waiting for anchors`]);
+    else if (s.mode === 'peer') facts.push(['Think', `${fmtMs(c.think)} = at(move) - at(own ACK of the previous move)`], ['Remaining', fmtClock(c.rem)]);
+    else facts.push(['Charge', `${fmtMs(c.charge)} (interval ${fmtMs(c.interval)}, think ${fmtMs(c.think)}, ${c.refund} ms lag refunded)`], ['Remaining', fmtClock(c.rem)]);
+  }
+  const tr = per.transit;
+  if (tr) {
+    facts.push(['Transit sample', `u = ${fmtMs(tr.u)} across two clocks, fastest so far ${fmtMs(tr.mDir)}`]);
+    if (tr.rtt != null) facts.push(['Link', `rtt ${fmtMs(tr.rtt)}, theta ${fmtMs(tr.theta)}, J ${fmtMs(tr.J)}`]);
+    if (s.mode === 'peer') facts.push(['Excess', tr.excess ? `${fmtMs(tr.excess)}: ${fmtMs(tr.covered)} paused from the budget, ${fmtMs(tr.budgetLeft)} left${tr.over ? `, ${fmtMs(tr.over)} beyond it: canceled unless both RESUME` : ''}` : 'none, inside J']);
+  }
+  if (isAck(r)) { const t = canon(s, opp(r.who), r.seen); const tp = t && (clk.per[t.id] || {}).transit; if (tp) facts.push(['Sample', `u(${t.label}) = at(this ACK) - at(${t.label}) = ${fmtMs(tp.u)}`]); }
+  if (per.claim) facts.push(['Claim', per.claim.elapsed != null ? `${fmtMs(per.claim.elapsed)} into the opponent's turn (converted with theta) vs remaining ${fmtMs(per.claim.rem)} + J ${fmtMs(per.claim.J)}: ${per.claim.valid ? 'valid' : 'not yet'}` : 'not applicable here']);
+  facts.push(['Size', `${wl} bytes on the wire, ${pl} bytes signed payload`], ['Record hash', short(hashOf(s, r))]);
+  const bar = wf.map(f => `<div class="seg" style="flex:${Math.max(f.b.length, 2)};background:${f.c}">${f.n}<small>${f.b.length} B</small></div>`).join('');
+  const hx = wf.map(f => `<span style="color:${f.c}">${hex(f.b)}</span>`).join(' ');
+  return `<h2>${WHO[r.who]} record ${r.seq}: ${esc(r.label)}<span class="chip">${opName(r.op)}${isMove(r) ? ' code ' + r.op : ''}</span></h2>
+    <p class="lead">${esc(explain(s, r))}</p>
+    <dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    <div class="bar">${bar}</div>
+    <div class="hex">${hx}</div>
+    <h2 style="margin-top:14px">Signed payload</h2>
+    <table><tr><th>Field</th><th>B</th><th>Value</th><th>Sent</th></tr>${pf.map(f => `<tr><td>${f.n}</td><td>${f.b.length}</td><td class="mono">${esc(f.v)}</td><td class="${f.wire ? 'yes' : 'no'}">${f.wire ? 'yes' : 'no'}</td></tr>`).join('')}</table>
+    <p class="muted" style="margin-top:8px;font-size:12px">Hashes are real SHA-256 over these bytes${SHA_OK ? '' : ' (self-test failed)'}; the 64-byte signature is demo bytes, not real Ed25519.</p>`;
+}
+
+function clockCard(s, clk) {
+  const row = w => `<div>${WHO[w]}</div><div class="t">${fmtClock(clk[w].rem)}</div><div class="tomove">${clk.toMove === w ? 'to move' : ''}</div>`;
+  const status = { running: 'running', ended: 'ended', disputed: 'disputed: no result, unrated', canceled: 'canceled: no result, unrated, still saved when uploaded' }[clk.status];
+  const link = s.mode === 'peer'
+    ? `<dl class="facts"><dt>Link</dt><dd>${clk.rtt != null ? `rtt ${fmtMs(clk.rtt)}, Black's clock ${fmtMs(clk.theta)} ahead, J ${fmtMs(clk.J)}` : 'no samples in both directions yet, J 30 ms'}</dd><dt>Pause budget</dt><dd>${fmtMs(clk.budget)} of ${fmtMs(s.budget)} left</dd><dt>Profile</dt><dd>${s.profile.name}, arbiter ${s.arbiter}, away after ${fmtMs(s.profile.away_after_ms)}</dd><dt>Game</dt><dd>${esc(status)}${clk.why ? ' (' + esc(clk.why) + ')' : ''}</dd></dl>`
+    : `<dl class="facts"><dt>Game</dt><dd>${esc(status)}${clk.why ? ' (' + esc(clk.why) + ')' : ''}</dd></dl>`;
+  return `<h2>Clocks</h2><p class="lead">${s.mode === 'anchored' ? 'Charged from existence times with the lag quota (a port of lichess LagTracker), using think from at and the ACK.' : 'The peer clock function: think times from the signed stamps, transit forgiven up to J, outages from the shared pause budget.'}</p>
+    <div class="clock" style="margin-top:10px">${row('w')}${row('b')}</div>${link}
+    <p class="muted" style="font-size:12px">${s.initial >= 60000 ? s.initial / 60000 + '+' + s.inc / 1000 : s.initial / 1000 + ' s +' + s.inc / 1000}. Time since the last move is not shown. Click a move or an ACK for its numbers.</p>`;
+}
+
+// Compact form of a final game: records without signatures, head signatures,
+// signed server records (PAWNSHAKE.md, "Stored games").
+function storedCard() {
+  const s = SCENARIOS.find(x => x.id === 'anchored');
+  const players = s.records.filter(r => r.who !== 's' && !r.alt);
+  const server = s.records.filter(r => r.who === 's');
+  const wireLen = r => wireFields(s, r).reduce((n, f) => n + f.b.length, 0);
+  const full = [...players, ...server].reduce((n, r) => n + wireLen(r), 0);
+  const bare = players.reduce((n, r) => n + wireLen(r) - 64, 0);
+  const compact = bare + 2 * 64 + server.reduce((n, r) => n + wireLen(r), 0);
+  return `<div class="card"><h2>Stored game</h2><p class="lead">Once a game is final only the last record of each player keeps its signature: it commits to every earlier record through prev. A verifier rebuilds all payloads and checks the heads.</p>
+    <table style="margin-top:8px"><tr><th>Scholar's mate, anchored</th><th>Bytes</th></tr>
+      <tr><td>every record signed (${players.length + server.length} records, ACKs included)</td><td>${full}</td></tr>
+      <tr><td>compact: records without signatures</td><td>${bare}</td></tr>
+      <tr><td>compact: 2 head signatures + ${server.length} signed verdict</td><td>${compact - bare}</td></tr>
+      <tr><td>compact total, before the genesis</td><td>${compact}</td></tr></table></div>`;
+}
+
+function renderFormats() {
+  const s = SCENARIOS.find(x => x.id === 'peer'), st = simulate(s, s.steps.length - 1);
+  const ex = s.records.find(r => r.label === 'Qh5');
+  const all = ['b1a3', 'b1c3', 'g1f3', 'g1h3', 'a2a3', 'a2a4', 'b2b3', 'b2b4', 'c2c3', 'c2c4', 'd2d3', 'd2d4', 'e2e3', 'e2e4', 'f2f3', 'f2f4', 'g2g3', 'g2g4', 'h2h3', 'h2h4'];
+  return `<div class="cards">
+    <div class="card">${inspector(s, st, { kind: 'rec', id: ex.id }, clocks(s, st))}</div>
+    ${profileCard()}
+    ${FORMATS.map(f => `<div class="card"><h2>${esc(f.title)}</h2><p class="lead">${esc(f.text)}</p><table style="margin-top:8px"><tr>${f.head.map(h => `<th>${h}</th>`).join('')}</tr>${f.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`).join('')}
+    ${storedCard()}
+    <div class="card"><h2>Move code</h2><p class="lead">Index in the legal moves sorted by from*320 + to*5 + promo. Starting position:</p>
+      <table style="margin-top:8px"><tr><th>Code</th><th>Move</th><th>Code</th><th>Move</th></tr>${all.slice(0, 10).map((m, i) => `<tr><td>${i}</td><td class="mono">${m}</td><td>${i + 10}</td><td class="mono">${all[i + 10]}</td></tr>`).join('')}</table></div>
+  </div>`;
+}
+
+function renderDecisions() {
+  return `<p class="lead">Pick an option and add a note; both go into "Copy notes" for the next iteration of the spec.</p><div class="cards">${DECISIONS.map(d => `
+    <div class="card"><h2>${esc(d.title)}</h2><p class="lead">${esc(d.text)}</p>
+      <div class="pills" style="margin:10px 0">${d.opts.map(o => `<button class="pill ${store.decisions[d.id] === o ? 'on' : ''}" data-dec="${d.id}" data-opt="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+      <textarea data-dnote="${d.id}" placeholder="Why, or a different option">${esc(store.dnotes[d.id] || '')}</textarea></div>`).join('')}</div>`;
+}
+
+function exportNotes() {
+  let md = '# Pawnshake visualizer notes\n\n## Decisions\n';
+  DECISIONS.forEach(d => { const c = store.decisions[d.id], n = store.dnotes[d.id]; if (c || n) md += `- ${d.title}: ${c || 'no pick'}${n ? ' (' + n.trim() + ')' : ''}\n`; });
+  md += '\n## Scenarios\n';
+  SCENARIOS.forEach(s => { const n = store.notes[s.id]; if (n && n.trim()) md += `### ${s.group}: ${s.name}\n${n.trim()}\n\n`; });
+  return md;
+}
+function toast(t) { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1600); }
+
+function bind() {
+  app.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { S.view = b.dataset.view; render(); });
+  app.querySelectorAll('[data-sc]').forEach(b => b.onclick = () => { S.sc = +b.dataset.sc; S.step = 0; S.sel = null; render(); });
+  const go = n => { S.step = Math.max(0, Math.min(sc().steps.length - 1, n)); S.sel = null; render(); };
+  const p = document.getElementById('prev'), n = document.getElementById('next'), rg = document.getElementById('range');
+  if (p) p.onclick = () => go(S.step - 1);
+  if (n) n.onclick = () => go(S.step + 1);
+  if (rg) rg.oninput = () => go(+rg.value);
+  app.querySelectorAll('[data-rec]').forEach(g => g.onclick = () => { S.sel = { kind: 'rec', id: g.dataset.rec }; render(); });
+  app.querySelectorAll('[data-rc]').forEach(g => g.onclick = () => { S.sel = { kind: 'receipt', n: +g.dataset.rc }; render(); });
+  app.querySelectorAll('[data-gen]').forEach(g => g.onclick = () => { S.sel = { kind: 'gen', label: g.dataset.gen }; render(); });
+  const note = document.getElementById('note');
+  if (note) note.oninput = () => { store.notes[sc().id] = note.value; save(); };
+  app.querySelectorAll('[data-dec]').forEach(b => b.onclick = () => { store.decisions[b.dataset.dec] = b.dataset.opt; save(); render(); });
+  app.querySelectorAll('[data-dnote]').forEach(t => t.oninput = () => { store.dnotes[t.dataset.dnote] = t.value; save(); });
+  const copy = document.getElementById('copy');
+  if (copy) copy.onclick = async () => {
+    const md = exportNotes();
+    try { await navigator.clipboard.writeText(md); toast('Notes copied'); }
+    catch (e) { const ta = document.createElement('textarea'); ta.value = md; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Notes copied'); } catch (e2) { toast('Copy failed'); } ta.remove(); }
+  };
+}
+document.addEventListener('keydown', e => {
+  if (S.view !== 'scenarios' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight' && S.step < sc().steps.length - 1) { S.step++; S.sel = null; render(); }
+  if (e.key === 'ArrowLeft' && S.step > 0) { S.step--; S.sel = null; render(); }
+});
+render();
+</script>
+</body>
+</html>
