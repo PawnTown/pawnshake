@@ -27,6 +27,17 @@ body, wire format), chains with fork detection, anchor heads and receipts, the
 canonical order, the lag quota and move codes; both are pinned to the same
 vectors. Not implemented yet: the peer clock function and live checks.
 
+## Install
+
+| Language | Package |
+|---|---|
+| Go | `go get github.com/PawnTown/pawnshake/go@latest` |
+| TypeScript / JavaScript | `npm install pawnshake` |
+| Dart / Flutter | `dart pub add pawnshake` |
+
+Try it in the browser: **[interactive visualizer](https://pawntown.github.io/pawnshake/viz/)**, step
+through games, attacks and outages and inspect every byte.
+
 ## Layout
 
 | Path | What |

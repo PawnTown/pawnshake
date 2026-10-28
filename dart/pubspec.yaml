@@ -1,8 +1,17 @@
 name: pawnshake
-description: Pawnshake protocol, signed peer-to-peer chess games (Dart implementation).
+description: >-
+  Pawnshake protocol: signed peer-to-peer chess games with one-byte moves,
+  Ed25519 (ZIP-215) records, chains with fork detection and anchors.
 version: 0.1.0
-repository: https://github.com/PawnTown/pawnshake
-publish_to: none
+homepage: https://pawntown.github.io/pawnshake/
+repository: https://github.com/PawnTown/pawnshake/tree/main/dart
+issue_tracker: https://github.com/PawnTown/pawnshake/issues
+topics:
+  - chess
+  - protocol
+  - ed25519
+  - cryptography
+  - p2p
 
 environment:
   sdk: ^3.6.0
