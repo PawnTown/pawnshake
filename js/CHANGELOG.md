@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-10-28)
+
+- npm only: the first upload of 0.1.0 never became public and npm does not
+  reuse a version. Same code as 0.1.0.
+
 ## 0.1.0 (2026-10-28)
 
 First public draft of the Pawnshake protocol.
