@@ -191,3 +191,19 @@ func TestRoundTripRandomGames(t *testing.T) {
 		}
 	}
 }
+
+func TestSortIndex(t *testing.T) {
+	moves := Sort([]string{"h2h4", "e2e4", "b1a3"})
+	if !slices.Equal(moves, []string{"b1a3", "e2e4", "h2h4"}) {
+		t.Fatal(moves)
+	}
+	if i, err := Index(moves, "e2e4"); err != nil || i != 1 {
+		t.Fatal(i, err)
+	}
+	if _, err := Index(moves, "a2a3"); err != ErrIllegal {
+		t.Fatal(err)
+	}
+	if _, err := Index(moves, "zz"); err != ErrMalformed {
+		t.Fatal(err)
+	}
+}

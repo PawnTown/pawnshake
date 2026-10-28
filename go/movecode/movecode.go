@@ -69,15 +69,9 @@ func Legal(pos *chess.Position) []string {
 // disagree about the legal moves then fail the signature instead of silently
 // reading the same byte as different moves.
 func Encode(pos *chess.Position, uci string) (code, legal int, err error) {
-	if !uciRe.MatchString(uci) {
-		return 0, 0, ErrMalformed
-	}
 	moves := Legal(pos)
-	i, ok := slices.BinarySearchFunc(moves, uci, compare)
-	if !ok {
-		return 0, len(moves), ErrIllegal
-	}
-	return i, len(moves), nil
+	i, err := Index(moves, uci)
+	return i, len(moves), err
 }
 
 // Decode returns the UCI move with the given code in the position.
@@ -87,4 +81,23 @@ func Decode(pos *chess.Position, code int) (uci string, legal int, err error) {
 		return "", len(moves), ErrOutOfRange
 	}
 	return moves[code], len(moves), nil
+}
+
+// Sort puts UCI moves into the canonical order, in place, and returns them.
+// It lets an engine other than this package's produce the list.
+func Sort(moves []string) []string {
+	slices.SortFunc(moves, compare)
+	return moves
+}
+
+// Index is the code of a move in a canonically sorted legal-move list.
+func Index(sorted []string, uci string) (int, error) {
+	if !uciRe.MatchString(uci) {
+		return 0, ErrMalformed
+	}
+	i, ok := slices.BinarySearchFunc(sorted, uci, compare)
+	if !ok {
+		return 0, ErrIllegal
+	}
+	return i, nil
 }

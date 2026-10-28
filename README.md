@@ -21,8 +21,11 @@ signatures alone. Everything that is policy rather than protocol (allowances,
 pause budget, how long a player may be gone, what leaving costs) is a
 **rules profile** signed into each game, so every app can tune it.
 
-Status: **draft**. The specification is moving; only the move code has a
-reference implementation so far.
+Status: **draft**. The specification is still moving. Go and JavaScript
+implement certificates, rules profiles, the genesis handshake, records (header,
+body, wire format), chains with fork detection, anchor heads and receipts, the
+canonical order, the lag quota and move codes; both are pinned to the same
+vectors. Not implemented yet: the peer clock function and live checks.
 
 ## Layout
 
@@ -31,7 +34,8 @@ reference implementation so far.
 | [`spec/PAWNSHAKE.md`](spec/PAWNSHAKE.md) | the protocol |
 | [`spec/profiles/`](spec/profiles) | rules profiles, starting with [`whitepawn/1`](spec/profiles/whitepawn-1.md) |
 | [`vectors/`](vectors) | conformance test vectors every implementation must pass |
-| [`go/`](go) | Go reference implementation (`github.com/PawnTown/pawnshake/go`) |
+| [`go/`](go) | Go implementation (`github.com/PawnTown/pawnshake/go`), 100 % test coverage |
+| [`js/`](js) | JavaScript implementation (`pawnshake`), 100 % test coverage |
 | [`viz/index.html`](viz/index.html) | interactive visualizer: step through scenarios, inspect every byte |
 
 The visualizer is a single self-contained HTML file: open it in a browser. Its
@@ -43,13 +47,19 @@ with "Copy notes".
 
 ```bash
 cd go
-go test ./...
-go test ./movecode -update   # regenerate vectors/movecode.json
+go test -cover ./...
+go test . -update && go test ./movecode -update   # regenerate the vectors
+```
+
+## JavaScript
+
+```bash
+cd js
+npm install
+npm run coverage
 ```
 
 ## Planned
 
-- `js/` (web, npm `pawnshake`), `rust/` (crate `pawnshake`, the core for
-  Flutter), `dart/` (pub `pawnshake`)
-- vectors for Ed25519 / ZIP-215, records, the peer clock function and the
-  canonical order
+- the peer clock function and live checks, in both languages
+- `rust/` (crate `pawnshake`, the core for Flutter), `dart/` (pub `pawnshake`)
