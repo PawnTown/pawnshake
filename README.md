@@ -35,8 +35,8 @@ vectors. Not implemented yet: the peer clock function and live checks.
 | TypeScript / JavaScript | `npm install pawnshake` |
 | Dart / Flutter | `dart pub add pawnshake` |
 
-Try it in the browser: **[interactive visualizer](https://pawntown.github.io/pawnshake/viz/)**, step
-through games, attacks and outages and inspect every byte.
+Read the docs: **[pawntown.github.io/pawnshake](https://pawntown.github.io/pawnshake/)**, how it
+works, the three game modes, every payload byte by byte, and an attack gallery.
 
 ## Layout
 
@@ -48,12 +48,21 @@ through games, attacks and outages and inspect every byte.
 | [`go/`](go) | Go implementation (`github.com/PawnTown/pawnshake/go`), 100 % test coverage |
 | [`js/`](js) | TypeScript implementation (npm `pawnshake`), 100 % test coverage |
 | [`dart/`](dart) | Dart implementation (pub `pawnshake`, for Flutter), 100 % test coverage |
-| [`viz/index.html`](viz/index.html) | interactive visualizer: step through scenarios, inspect every byte |
+| [`site/`](site) | the docs site (`node site/build.mjs --serve`), published to GitHub Pages |
+| [`viz/index.html`](viz/index.html) | design scratchpad: step through scenarios locally (not published) |
 
-The visualizer is a single self-contained HTML file: open it in a browser. Its
-clock function and canonical order follow the spec; signatures in it are demo
-bytes. Notes and decisions written there are kept in the browser and exported
-with "Copy notes".
+## Docs site
+
+```bash
+node site/build.mjs --serve     # http://localhost:4321/
+```
+
+Plain HTML from `site/pages/*.mjs`, no dependencies. The byte pictures are
+drawn from `vectors/core.json`, so they always match the libraries. A push to
+`main` publishes it (`.github/workflows/pages.yml`).
+
+The visualizer in `viz/` is a single self-contained HTML file for working out
+scenarios: open it in a browser. Its signatures are demo bytes.
 
 ## Go
 
