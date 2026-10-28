@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Pawnshake" width="420">
+</p>
+
 # Pawnshake
 
 **The Pawnshake protocol**: signed, peer-to-peer chess games with a clock.
