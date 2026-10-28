@@ -72,3 +72,8 @@ tool/coverage.sh
 
 - the peer clock function and live checks, in every language
 - `rust/` (crate `pawnshake`)
+
+## License
+
+MIT, see [LICENSE](LICENSE). `vectors/zip215.json` comes from
+`github.com/hdevalence/ed25519consensus` (BSD-3-Clause).
